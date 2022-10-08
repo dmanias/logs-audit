@@ -1,0 +1,57 @@
+version: '3.4'
+
+networks:
+  app-tier:
+    driver: bridge
+
+services:
+  mongo:
+    image: bitnami/mongodb:latest
+    container_name: mongo
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - MONGODB_EXTRA_FLAGS=--wiredTigerCacheSizeGB=2
+      - MONGODB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD:-mongorootpass}
+      - MONGODB_USERNAME=${MONGODB_USERNAME:-mongouser}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD:-mongopass}
+      - MONGODB_ENABLE_DIRECTORY_PER_DB=yes
+      - MONGODB_DATABASE=db
+    ports:
+      - 27017:27017
+    networks:
+      - app-tier
+    restart: unless-stopped
+    volumes:
+      - ./mongo/data:/bitnami/mongodb/data
+      - ./mongo/mongo-init/:/docker-entrypoint-initdb.d/:ro
+  mongo-ui:
+    image: mongo-express
+    container_name: mongo-express
+    depends_on:
+      - mongo
+    environment:
+      - ME_CONFIG_OPTIONS_EDITORTHEME="ambiance"
+      - ME_CONFIG_MONGODB_URL=mongodb://${MONGODB_USERNAME:-mongouser}:${MONGODB_PASSWORD:-mongopass}@mongo:27017/db
+    ports:
+      - 8081:8081
+    restart: unless-stopped
+    networks:
+      - app-tier
+  api:
+    image: ghcr.io/dmanias/logs-audit:development
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: api
+    depends_on:
+      - mongo
+    environment:
+      - PORT=8000
+      - MONGO_CONNECTOR=mongodb://${MONGODB_USERNAME:-mongouser}:${MONGODB_PASSWORD:-mongopass}@mongo:27017/db
+    ports:
+      - 8000:8000
+      - 9000:9000
+    networks:
+      - app-tier
+    restart: unless-stopped
