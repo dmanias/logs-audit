@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/dmanias/mongo"
-	"github.com/pampatzoglou/api/config"
+	"github.com/dmanias/logs-audit/config"
+	"github.com/dmanias/logs-audit/mongo"
+	"github.com/hellofresh/health-go/v4"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
@@ -15,7 +16,7 @@ func main() {
 
 	//	jsons, err := loadJsons()
 	//	fmt.Println(jsons, err)
-	handleConnections(dbConnect())
+	handleDB()
 }
 func loadJsons() ([]string, error) {
 
@@ -31,7 +32,7 @@ func loadJsons() ([]string, error) {
 	return split, nil
 }
 
-func dbConnect() *mongo2.Client { //??
+func handleDB() { //??
 	// set global log level
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
@@ -54,12 +55,8 @@ func dbConnect() *mongo2.Client { //??
 	if err != nil {
 		log.Fatal(err)
 	}
-	return mongoClient
-}
+	db := mongoClient.Database("db")
+	events := db.Collection("events")
 
-func handleConnections(mongoClient *mongo2.Client) {
-	quickstartDatabase := mongoClient.Database("db")
-	podcastsCollection := quickstartDatabase.Collection("events")
-
-	fmt.Println("sdsdasdadasd", podcastsCollection)
+	fmt.Println("events results", events)
 }
