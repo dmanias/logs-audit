@@ -24,13 +24,12 @@ type Event struct {
 
 func main() {
 
-	jsons, err := loadJsons()
-	if err != nil {
-		log.Fatal(err)
-	}
-	addToDB(jsons)
-	fmt.Println("test")
-	http.HandleFunc("/index/", queryDB)
+	//	jsons, err := loadJsons()
+	//	if err != nil {
+	//	log.Fatal(err)
+	//}
+	//	addToDB(jsons)
+	http.HandleFunc("/events", queryDB)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 func loadJsons() ([]string, error) {
@@ -106,7 +105,25 @@ func jsonStruct(jsonStr string) Event {
 func queryDB(w http.ResponseWriter, r *http.Request) {
 	// https://www.mongodb.com/blog/post/quick-start-golang--mongodb--how-to-read-documents
 
-	fmt.Println(r)
+	hasTimestamp := r.URL.Query().Has("timeStamp")
+	hasService := r.URL.Query().Has("service")
+	hasEventType := r.URL.Query().Has("eventType")
+	hasData := r.URL.Query().Has("data")
+
+	filter := bson.M{}
+
+	switch {
+	case hasTimestamp:
+		filter["timestamp"] = r.URL.Query().Get("timeStamp")
+	case hasService:
+		filter["service"] = r.URL.Query().Get("service")
+	case hasEventType:
+		filter["eventType"] = r.URL.Query().Get("eventType")
+	case hasData:
+		filter["data"] = r.URL.Query().Get("data")
+	default:
+	}
+
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
@@ -119,10 +136,11 @@ func queryDB(w http.ResponseWriter, r *http.Request) {
 	db := mongoClient.Database("db")
 	eventsCollection := db.Collection("event")
 
-	filterCursor, err := eventsCollection.Find(ctx, bson.M{"duration": 25})
+	filterCursor, err := eventsCollection.Find(ctx, filter)
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println(filterCursor)
 	var eventsFiltered []bson.M
 	if err = filterCursor.All(ctx, &eventsFiltered); err != nil {
 		log.Fatal(err)
@@ -140,3 +158,6 @@ func queryDB(w http.ResponseWriter, r *http.Request) {
 //TODO create admin enviroment
 //TODO show results in html
 //TODO bearer token to JWT
+//TODO different http for GET, POST
+//TODO timestamp higher, between etc
+//TODO SOS mongo secondary keys etc

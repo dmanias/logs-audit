@@ -5,5 +5,6 @@ ENV GO111MODULE=on \
     GOOS=linux
 
 WORKDIR /
+EXPOSE 8080
 COPY . .
 CMD ["go", "run", "."]
