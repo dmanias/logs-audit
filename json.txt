@@ -1,7 +1,7 @@
 {
   "timestamp": "2017-11-22T08:44:22.309Z",
   "service": "ADMINISTRATION",
-  "evenType": "event",
+  "eventType": "event",
   "eventNumber": 1,
   "status": 0,
   "action": "creation",

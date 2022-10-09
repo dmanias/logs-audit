@@ -1,7 +1,7 @@
 {
   "timestamp": "2017-11-22T08:44:22.309Z",
   "service": "ADMINISTRATION",
-  "evenType": "event",
+  "eventType": "event",
   "eventNumber": 1,
   "status": 0,
   "action": "creation",
@@ -13,7 +13,7 @@
 {
   "timestamp": "2017-12-22T08:44:22.309Z",
   "service": "CUSTOMERAPI",
-  "evenType": "event",
+  "eventType": "event",
   "eventNumber": 5,
   "status": 0,
   "action": "bought",
@@ -26,7 +26,7 @@
 {
   "timestamp": "2017-12-22T08:44:22.309Z",
   "service": "BILLING",
-  "evenType": "event",
+  "eventType": "event",
   "eventNumber": 156,
   "status": 0,
   "action": "billing",
@@ -37,9 +37,9 @@
 }
 
 {
-  "timestamp": "2017-13-22T08:44:22.309Z",
+  "timestamp": "2017-12-22T08:44:22.309Z",
   "service": "ADMINISTRATION",
-  "evenType": "event",
+  "eventType": "event",
   "eventNumber": 100,
   "status": 0,
   "action": "deletion",

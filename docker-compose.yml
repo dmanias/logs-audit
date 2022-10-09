@@ -47,11 +47,10 @@ services:
     depends_on:
       - mongo
     environment:
-      - PORT=8000
+      - PORT=8080
       - MONGO_CONNECTOR=mongodb://${MONGODB_USERNAME:-mongouser}:${MONGODB_PASSWORD:-mongopass}@mongo:27017/db
     ports:
-      - 8000:8000
-      - 9000:9000
+      - 8080:8080
     networks:
       - app-tier
     restart: unless-stopped

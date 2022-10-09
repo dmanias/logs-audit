@@ -29,13 +29,13 @@ func main() {
 		log.Fatal(err)
 	}
 	addToDB(jsons)
-
+	fmt.Println("test")
 	http.HandleFunc("/index/", queryDB)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 func loadJsons() ([]string, error) {
 
-	filename := "json.txt"
+	filename := "jsons.txt"
 	content, err := os.ReadFile(filename)
 
 	if err != nil {
@@ -43,7 +43,7 @@ func loadJsons() ([]string, error) {
 	}
 
 	fileBody := string(content)
-	split := strings.Split(fileBody, "\\n\\n")
+	split := strings.Split(fileBody, "\n\n")
 	return split, nil
 }
 
@@ -76,14 +76,16 @@ func addToDB(jsons []string) {
 		json := jsonStruct(jsonStr)
 		_, err := event.InsertOne(ctx, bson.D{
 			{Key: "timestamp", Value: json.Timestamp},
-			{Key: "author", Value: "Nic Raboy"},
-			{Key: "tags", Value: bson.A{"development", "programming", "coding"}},
+			{Key: "eventType", Value: json.EventType},
+			{Key: "data", Value: json.Data},
+			{Key: "service", Value: json.Service},
+			{Key: "tags", Value: bson.A{"coding", "test"}},
 		})
+
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
-	//	fmt.Println(eventResult, err)
 }
 
 func jsonStruct(jsonStr string) Event {
@@ -98,13 +100,13 @@ func jsonStruct(jsonStr string) Event {
 	delete(event.Data, "eventType")
 	delete(event.Data, "service")
 
-	fmt.Printf("%+v", event)
-
 	return event
 }
 
 func queryDB(w http.ResponseWriter, r *http.Request) {
 	// https://www.mongodb.com/blog/post/quick-start-golang--mongodb--how-to-read-documents
+
+	fmt.Println(r)
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
@@ -133,3 +135,8 @@ func queryDB(w http.ResponseWriter, r *http.Request) {
 //TODO create function for errors
 //TODO template to show events
 //TODO probably replace MongoDB with elasticsearch
+//TODO add regex for better indexing
+//TODO add enviroment for tags/labels
+//TODO create admin enviroment
+//TODO show results in html
+//TODO bearer token to JWT
