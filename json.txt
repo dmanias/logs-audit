@@ -1,0 +1,11 @@
+{
+  "timestamp": "2017-11-22T08:44:22.309Z",
+  "service": "ADMINISTRATION",
+  "evenType": "event",
+  "eventNumber": 1,
+  "status": 0,
+  "action": "creation",
+  "customerName": "Babis",
+  "customerID": "12354",
+  "customerRights": "USER"
+}
