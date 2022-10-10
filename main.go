@@ -51,18 +51,20 @@ func storeEvent(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	var event Event
-	err = json.NewDecoder(r.Body).Decode(&event)
+	inputEvent, err := createEventFromInput(r)
+
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		log.Fatal(err)
+		panic(err)
 	}
+
 	defer mongo.Close(mongoClient, ctx, cancel)
 
 	db := mongoClient.Database("db")
 	eventCollection := db.Collection("event")
 
-	bsonFromEvent := createBsonObject(event)
+	bsonFromEvent := createBsonObject(inputEvent)
+
 	_, err = eventCollection.InsertOne(ctx, bsonFromEvent)
 	w.Header().Set("Content-Type", "application/json")
 
@@ -80,12 +82,23 @@ func storeEvent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func createBsonObject(event Event) bson.M {
+func createEventFromInput(r *http.Request) (Event, error) {
+	var inputEvent Event
+	err := json.NewDecoder(r.Body).Decode(&inputEvent)
+	err = json.NewDecoder(r.Body).Decode(&inputEvent.Data)
+	delete(inputEvent.Data, "timestamp")
+	delete(inputEvent.Data, "eventType")
+	delete(inputEvent.Data, "service")
+	return inputEvent, err
+}
+
+func createBsonObject(inputEvent Event) bson.M {
+
 	bsonFromJson := bson.M{
-		"timestamp": event.Timestamp,
-		"service":   event.Service,
-		"eventType": event.EventType,
-		"data":      event.Data,
+		"timestamp": inputEvent.Timestamp,
+		"service":   inputEvent.Service,
+		"eventType": inputEvent.EventType,
+		"data":      inputEvent.Data,
 		"tags":      bson.A{"coding", "test"},
 	}
 	return bsonFromJson
