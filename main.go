@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/dmanias/logs-audit/config"
 	"github.com/dmanias/logs-audit/mongo"
+	"github.com/gorilla/mux"
 	"github.com/hellofresh/health-go/v4"
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
@@ -22,15 +23,23 @@ type Event struct {
 	Data      map[string]interface{} `json:"-"` // Rest of the fields should go here.
 }
 
+type Query struct {
+	Timestamp string `bson:"timestamp"`
+	Service   string `bson:"service"`
+	EventType string `bson:"eventType"`
+	Data      string `bson:"-"` // Rest of the fields should go here.
+}
+
 func main() {
 
-	//	jsons, err := loadJsons()
-	//	if err != nil {
-	//	log.Fatal(err)
-	//}
-	//	addToDB(jsons)
-	http.HandleFunc("/events", queryDB)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	jsons, err := loadJsons()
+	if err != nil {
+		log.Fatal(err)
+	}
+	addToDB(jsons)
+	router := mux.NewRouter()
+	router.HandleFunc("/events", queryDB).Methods("GET")
+	log.Fatal(http.ListenAndServe(":8080", router))
 }
 func loadJsons() ([]string, error) {
 
@@ -74,11 +83,11 @@ func addToDB(jsons []string) {
 	for _, jsonStr := range jsons {
 		json := jsonStruct(jsonStr)
 		_, err := event.InsertOne(ctx, bson.D{
-			{Key: "timestamp", Value: json.Timestamp},
-			{Key: "eventType", Value: json.EventType},
-			{Key: "data", Value: json.Data},
-			{Key: "service", Value: json.Service},
-			{Key: "tags", Value: bson.A{"coding", "test"}},
+			{"timestamp", json.Timestamp},
+			{"eventType", json.EventType},
+			{"data", json.Data},
+			{"service", json.Service},
+			{"tags", bson.A{"coding", "test"}},
 		})
 
 		if err != nil {
@@ -102,27 +111,32 @@ func jsonStruct(jsonStr string) Event {
 	return event
 }
 
-func queryDB(w http.ResponseWriter, r *http.Request) {
-	// https://www.mongodb.com/blog/post/quick-start-golang--mongodb--how-to-read-documents
+func buildBsonObject(r *http.Request) bson.M {
 
 	hasTimestamp := r.URL.Query().Has("timeStamp")
 	hasService := r.URL.Query().Has("service")
 	hasEventType := r.URL.Query().Has("eventType")
 	hasData := r.URL.Query().Has("data")
 
-	filter := bson.M{}
-
-	switch {
-	case hasTimestamp:
-		filter["timestamp"] = r.URL.Query().Get("timeStamp")
-	case hasService:
-		filter["service"] = r.URL.Query().Get("service")
-	case hasEventType:
-		filter["eventType"] = r.URL.Query().Get("eventType")
-	case hasData:
-		filter["data"] = r.URL.Query().Get("data")
-	default:
+	query := bson.M{}
+	if hasTimestamp {
+		query["timestamp"] = r.URL.Query().Get("timeStamp")
 	}
+	if hasEventType {
+		query["eventType"] = r.URL.Query().Get("eventType")
+	}
+	if hasData {
+		query["data"] = r.URL.Query().Get("data")
+	}
+
+	if hasService {
+		query["service"] = r.URL.Query().Get("service")
+	}
+	return query
+}
+
+func queryDB(w http.ResponseWriter, r *http.Request) {
+	// https://www.mongodb.com/blog/post/quick-start-golang--mongodb--how-to-read-documents
 
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
@@ -136,16 +150,20 @@ func queryDB(w http.ResponseWriter, r *http.Request) {
 	db := mongoClient.Database("db")
 	eventsCollection := db.Collection("event")
 
-	filterCursor, err := eventsCollection.Find(ctx, filter)
+	query := buildBsonObject(r)
+	fmt.Println(query)
+
+	filterCursor, err := eventsCollection.Find(ctx, query)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(filterCursor)
+
 	var eventsFiltered []bson.M
 	if err = filterCursor.All(ctx, &eventsFiltered); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(eventsFiltered)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(eventsFiltered)
 }
 
 //TODO JWT https://blog.logrocket.com/jwt-authentication-go/
@@ -160,4 +178,10 @@ func queryDB(w http.ResponseWriter, r *http.Request) {
 //TODO bearer token to JWT
 //TODO different http for GET, POST
 //TODO timestamp higher, between etc
+
+//TODO sos search mongo from data and metadata
 //TODO SOS mongo secondary keys etc
+//TODO SOS sort the service or db
+//TODO SOS refactor (functions packages) and tests
+//TODO SOS add tags to the query
+//TODO SOS logs and if
