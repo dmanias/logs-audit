@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dmanias/logs-audit/config"
+	"github.com/dmanias/logs-audit/mongo"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
@@ -177,7 +178,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	username, password, ok := r.BasicAuth()
 	if ok {
 
-		tokenDetails, err := authentication.GenerateToken(username, password)
+		tokenDetails, err := generateToken(username, password)
 
 		if err != nil {
 			fmt.Fprintf(w, err.Error())

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func GenerateToken(username string, password string) (map[string]interface{}, error) {
+func generateToken(username string, password string) (map[string]interface{}, error) {
 
 	db, err := sql.Open("mysql", "sample_db_user:EXAMPLE_PASSWORD@tcp(127.0.0.1:3306)/sample_db")
 	if err != nil {
