@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dmanias/logs-audit/config"
-	"github.com/dmanias/logs-audit/mongo"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -22,8 +22,9 @@ type Event struct {
 
 func main() {
 	router := mux.NewRouter()
-	router.HandleFunc("/events", queryDB).Methods("GET")
-	router.HandleFunc("/events", storeEvent).Methods("POST")
+	router.HandleFunc("/events", queryDBHandler).Methods("GET")
+	router.HandleFunc("/events", storeEventsHandler).Methods("POST")
+	router.HandleFunc("/auth", authHandler).Methods("GET")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
@@ -43,7 +44,7 @@ func writeToFile(json bson.M) {
 	file.WriteString(string(jsonStr))
 }
 
-func storeEvent(w http.ResponseWriter, r *http.Request) {
+func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
@@ -51,7 +52,7 @@ func storeEvent(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	inputEvent, err := createEventFromInput(r)
+	inputEvent := createEventFromInput(r)
 
 	if err != nil {
 		log.Fatal(err)
@@ -82,14 +83,25 @@ func storeEvent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func createEventFromInput(r *http.Request) (Event, error) {
-	var inputEvent Event
-	err := json.NewDecoder(r.Body).Decode(&inputEvent)
-	err = json.NewDecoder(r.Body).Decode(&inputEvent.Data)
-	delete(inputEvent.Data, "timestamp")
-	delete(inputEvent.Data, "eventType")
-	delete(inputEvent.Data, "service")
-	return inputEvent, err
+func createEventFromInput(r *http.Request) Event {
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	event := Event{}
+	if err := json.Unmarshal(body, &event); err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(body, &event.Data); err != nil {
+		panic(err)
+	}
+	delete(event.Data, "timestamp")
+	delete(event.Data, "eventType")
+	delete(event.Data, "service")
+
+	return event
 }
 
 func createBsonObject(inputEvent Event) bson.M {
@@ -101,6 +113,7 @@ func createBsonObject(inputEvent Event) bson.M {
 		"data":      inputEvent.Data,
 		"tags":      bson.A{"coding", "test"},
 	}
+	fmt.Println("createBsonObject", bsonFromJson)
 	return bsonFromJson
 }
 
@@ -128,7 +141,7 @@ func buildBsonObject(r *http.Request) bson.M {
 	return query
 }
 
-func queryDB(w http.ResponseWriter, r *http.Request) {
+func queryDBHandler(w http.ResponseWriter, r *http.Request) {
 	// https://www.mongodb.com/blog/post/quick-start-golang--mongodb--how-to-read-documents
 
 	cfg := config.New()
@@ -158,6 +171,27 @@ func queryDB(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(eventsFiltered)
+}
+
+func authHandler(w http.ResponseWriter, r *http.Request) {
+	username, password, ok := r.BasicAuth()
+	if ok {
+
+		tokenDetails, err := authentication.GenerateToken(username, password)
+
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+		} else {
+
+			enc := json.NewEncoder(w)
+			enc.SetIndent("", "  ")
+			enc.Encode(tokenDetails)
+		}
+	} else {
+
+		fmt.Fprintf(w, "You require a username/password to get a token.\r\n")
+	}
+
 }
 
 //TODO JWT https://blog.logrocket.com/jwt-authentication-go/
