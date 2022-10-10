@@ -20,27 +20,14 @@ type Event struct {
 	Data      map[string]interface{} `json:"-"` // Rest of the fields should go here.
 }
 
-type Query struct {
-	Timestamp string `bson:"timestamp"`
-	Service   string `bson:"service"`
-	EventType string `bson:"eventType"`
-	Data      string `bson:"-"` // Rest of the fields should go here.
-}
-
 func main() {
-
-	/*jsons, err := loadJsons()
-	if err != nil {
-		log.Fatal(err)
-	}*/
-	//addToDB(jsons)
 	router := mux.NewRouter()
 	router.HandleFunc("/events", queryDB).Methods("GET")
 	router.HandleFunc("/events", storeEvent).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
-func writeToFile(json string) {
+func writeToFile(json bson.M) {
 	//file, err := os.Open("mongo/temp.json")
 	file, err := os.Create("mongo/temp.json")
 	if err != nil {
@@ -48,23 +35,13 @@ func writeToFile(json string) {
 	}
 	defer file.Close()
 
-	file.WriteString(json)
-
-}
-
-/*func loadJsons() ([]string, error) {
-
-	filename := "jsons.txt"
-	content, err := os.ReadFile(filename)
-
+	var jsonStr []byte
+	jsonStr, err = bson.Marshal(json)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fileBody := string(content)
-	split := strings.Split(fileBody, "\n\n")
-	return split, nil
-}*/
+	file.WriteString(string(jsonStr))
+}
 
 func storeEvent(w http.ResponseWriter, r *http.Request) {
 	cfg := config.New()
@@ -85,19 +62,22 @@ func storeEvent(w http.ResponseWriter, r *http.Request) {
 	db := mongoClient.Database("db")
 	eventCollection := db.Collection("event")
 
-	bsonFromJson := createBsonObject(event)
-	_, err = eventCollection.InsertOne(ctx, bsonFromJson)
+	bsonFromEvent := createBsonObject(event)
+	_, err = eventCollection.InsertOne(ctx, bsonFromEvent)
 	w.Header().Set("Content-Type", "application/json")
 
 	if err != nil {
 		log.Fatal(err)
-		writeToFile()
+		writeToFile(bsonFromEvent)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(bson.M{
 			"message": "Error while inserting event. Event is stored in temporal storage",
 		})
 	}
-
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(bson.M{
+		"message": "Event has been stored.",
+	})
 }
 
 func createBsonObject(event Event) bson.M {
@@ -110,21 +90,6 @@ func createBsonObject(event Event) bson.M {
 	}
 	return bsonFromJson
 }
-
-/*func jsonStruct(jsonStr string) Event {
-	event := Event{}
-	if err := json.Unmarshal([]byte(jsonStr), &event); err != nil {
-		panic(err)
-	}
-	if err := json.Unmarshal([]byte(jsonStr), &event.Data); err != nil {
-		panic(err)
-	}
-	delete(event.Data, "timestamp")
-	delete(event.Data, "eventType")
-	delete(event.Data, "service")
-
-	return event
-}*/
 
 func buildBsonObject(r *http.Request) bson.M {
 
