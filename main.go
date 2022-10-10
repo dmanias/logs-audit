@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -37,6 +38,18 @@ func main() {
 	router.HandleFunc("/events", queryDB).Methods("GET")
 	router.HandleFunc("/events", storeEvent).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", router))
+}
+
+func writeToFile(json string) {
+	//file, err := os.Open("mongo/temp.json")
+	file, err := os.Create("mongo/temp.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	file.WriteString(json)
+
 }
 
 /*func loadJsons() ([]string, error) {
@@ -72,19 +85,33 @@ func storeEvent(w http.ResponseWriter, r *http.Request) {
 	db := mongoClient.Database("db")
 	eventCollection := db.Collection("event")
 
-	_, err = eventCollection.InsertOne(ctx, bson.D{
-		{"timestamp", event.Timestamp},
-		{"eventType", event.EventType},
-		{"data", event.Data},
-		{"service", event.Service},
-		{"tags", bson.A{"coding", "test"}},
-	})
+	bsonFromJson := createBsonObject(event)
+	_, err = eventCollection.InsertOne(ctx, bsonFromJson)
+	w.Header().Set("Content-Type", "application/json")
+
 	if err != nil {
 		log.Fatal(err)
+		writeToFile()
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(bson.M{
+			"message": "Error while inserting event. Event is stored in temporal storage",
+		})
 	}
+
 }
 
-func jsonStruct(jsonStr string) Event {
+func createBsonObject(event Event) bson.M {
+	bsonFromJson := bson.M{
+		"timestamp": event.Timestamp,
+		"service":   event.Service,
+		"eventType": event.EventType,
+		"data":      event.Data,
+		"tags":      bson.A{"coding", "test"},
+	}
+	return bsonFromJson
+}
+
+/*func jsonStruct(jsonStr string) Event {
 	event := Event{}
 	if err := json.Unmarshal([]byte(jsonStr), &event); err != nil {
 		panic(err)
@@ -97,7 +124,7 @@ func jsonStruct(jsonStr string) Event {
 	delete(event.Data, "service")
 
 	return event
-}
+}*/
 
 func buildBsonObject(r *http.Request) bson.M {
 
@@ -151,6 +178,7 @@ func queryDB(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(eventsFiltered)
 }
 
