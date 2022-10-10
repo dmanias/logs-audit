@@ -1,18 +1,14 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/dmanias/logs-audit/config"
 	"github.com/dmanias/logs-audit/mongo"
 	"github.com/gorilla/mux"
-	"github.com/hellofresh/health-go/v4"
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 )
 
@@ -32,16 +28,18 @@ type Query struct {
 
 func main() {
 
-	jsons, err := loadJsons()
+	/*jsons, err := loadJsons()
 	if err != nil {
 		log.Fatal(err)
-	}
-	addToDB(jsons)
+	}*/
+	//addToDB(jsons)
 	router := mux.NewRouter()
 	router.HandleFunc("/events", queryDB).Methods("GET")
+	router.HandleFunc("/events", storeEvent).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
-func loadJsons() ([]string, error) {
+
+/*func loadJsons() ([]string, error) {
 
 	filename := "jsons.txt"
 	content, err := os.ReadFile(filename)
@@ -53,9 +51,9 @@ func loadJsons() ([]string, error) {
 	fileBody := string(content)
 	split := strings.Split(fileBody, "\n\n")
 	return split, nil
-}
+}*/
 
-func addToDB(jsons []string) {
+func storeEvent(w http.ResponseWriter, r *http.Request) {
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
@@ -63,36 +61,26 @@ func addToDB(jsons []string) {
 		panic(err)
 	}
 
+	var event Event
+	err = json.NewDecoder(r.Body).Decode(&event)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	defer mongo.Close(mongoClient, ctx, cancel)
-	h, _ := health.New()
-	err = h.Register(health.Config{
-		Name:      "mongo-check",
-		Timeout:   time.Second * 5,
-		SkipOnErr: true,
-		Check: func(ctx context.Context) error {
-			mongo.Ping(mongoClient, ctx)
-			return nil
-		},
+
+	db := mongoClient.Database("db")
+	eventCollection := db.Collection("event")
+
+	_, err = eventCollection.InsertOne(ctx, bson.D{
+		{"timestamp", event.Timestamp},
+		{"eventType", event.EventType},
+		{"data", event.Data},
+		{"service", event.Service},
+		{"tags", bson.A{"coding", "test"}},
 	})
 	if err != nil {
 		log.Fatal(err)
-	}
-	db := mongoClient.Database("db")
-	event := db.Collection("event")
-
-	for _, jsonStr := range jsons {
-		json := jsonStruct(jsonStr)
-		_, err := event.InsertOne(ctx, bson.D{
-			{"timestamp", json.Timestamp},
-			{"eventType", json.EventType},
-			{"data", json.Data},
-			{"service", json.Service},
-			{"tags", bson.A{"coding", "test"}},
-		})
-
-		if err != nil {
-			log.Fatal(err)
-		}
 	}
 }
 
@@ -178,6 +166,7 @@ func queryDB(w http.ResponseWriter, r *http.Request) {
 //TODO bearer token to JWT
 //TODO different http for GET, POST
 //TODO timestamp higher, between etc
+//TODO get with {id}
 
 //TODO sos search mongo from data and metadata
 //TODO SOS mongo secondary keys etc

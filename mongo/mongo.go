@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"github.com/hellofresh/health-go/v4"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -47,6 +48,20 @@ func Connect(uri string) (*mongo.Client, context.Context,
 
 	// mongo.Connect return mongo.Client method
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+
+	h, _ := health.New()
+	err = h.Register(health.Config{
+		Name:      "mongo-check",
+		Timeout:   time.Second * 5,
+		SkipOnErr: true,
+		Check: func(ctx context.Context) error {
+			Ping(client, ctx)
+			return nil
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 	return client, ctx, cancel, err
 }
 
