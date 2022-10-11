@@ -72,7 +72,7 @@ func registrationsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func writeToFile(json bson.M) {
+func writeToFile(jsonInput bson.M) {
 	//file, err := os.Open("mongo/temp.json")
 	file, err := os.Create("mongo/temp.json")
 	if err != nil {
@@ -81,7 +81,7 @@ func writeToFile(json bson.M) {
 	defer file.Close()
 
 	var jsonStr []byte
-	jsonStr, err = bson.Marshal(json)
+	jsonStr, err = bson.Marshal(jsonInput)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -285,6 +285,7 @@ func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 //TODO closures error handling
 //TODO methods if necessary
 //TODO concurrency thread safe
+//TODO coverage tests and benchmarks
 
 //TODO sos search mongo from data and metadata
 //TODO SOS mongo secondary keys etc
