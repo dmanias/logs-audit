@@ -1,0 +1,50 @@
+basePath: /api/v1
+host: localhost:8080
+info:
+  contact: {}
+  title: Logs Audit API documentation
+  version: 1.0.0
+paths:
+  /events:
+    get:
+      description: get documents
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: timestamp
+        in: query
+        name: timestamp
+        type: string
+      - description: the name of the service that sends the event
+        in: query
+        name: service
+        type: string
+      - description: the type of the event
+        in: query
+        name: eventType
+        type: string
+      - description: extra data to search in the event body
+        in: query
+        name: data
+        type: string
+      - description: metadata given from the service when stores the events
+        in: query
+        name: tags
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: json
+        "400":
+          description: Bad Request
+          schema:
+            type: json
+      summary: Brings documents according to the criteria
+      tags:
+      - db
+swagger: "2.0"

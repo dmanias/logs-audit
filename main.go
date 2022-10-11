@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dmanias/logs-audit/config"
+	_ "github.com/dmanias/logs-audit/docs"
 	"github.com/dmanias/logs-audit/mongo"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"go.mongodb.org/mongo-driver/bson"
 	"io/ioutil"
 	"net/http"
@@ -27,12 +29,21 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
+// @title Logs Audit API documentation
+// @version 1.0.0
+
+// @host localhost:8080
+// @BasePath /api/v1
+
 func main() {
-	router := mux.NewRouter()
-	router.HandleFunc("/events", queryDBHandler).Methods("GET")
+	muxRouter := mux.NewRouter()
+	router := muxRouter.PathPrefix("/api/v1").Subrouter() //Create base path for all routes
+	router.HandleFunc("/events", searchDBHandler).Methods("GET")
 	router.HandleFunc("/events", storeEventsHandler).Methods("POST")
 	router.HandleFunc("/auth", authenticationHandler).Methods("GET")
 	router.HandleFunc("/auth", registrationsHandler).Methods("POST")
+	router.PathPrefix("/swagger").Handler(httpSwagger.WrapHandler)
+
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
@@ -88,10 +99,13 @@ func checkToken(r *http.Request) bool {
 }
 
 func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
-
-	if !checkToken(r) {
-		panic("Token is not valid")
-	}
+	w.Header().Set("Content-Type", "application/json")
+	/*
+		if !checkToken(r) {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid"})
+		}
+	*/
 
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
@@ -188,10 +202,24 @@ func buildBsonObject(r *http.Request) bson.M {
 	return query
 }
 
-func queryDBHandler(w http.ResponseWriter, r *http.Request) {
-
+// searchDBHandler ... Search in DB
+// @Summary Brings documents according to the criteria
+// @Description get documents
+// @Tags db
+// @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
+// @Param timestamp query string false "timestamp"
+// @Param service query string false "the name of the service that sends the event"
+// @Param eventType query string false "the type of the event"
+// @Param data query string false "extra data to search in the event body"
+// @Param tags query string false "metadata given from the service when stores the events"
+// @Success 200 {json} Event
+// @Failure 400 {json} error message
+// @Router /events [get]
+func searchDBHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	if !checkToken(r) {
-		panic("Token is not valid")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid"})
 	}
 
 	cfg := config.New()
@@ -205,7 +233,6 @@ func queryDBHandler(w http.ResponseWriter, r *http.Request) {
 
 	db := mongoClient.Database("db")
 	eventsCollection := db.Collection("events")
-
 	query := buildBsonObject(r)
 
 	filterCursor, err := eventsCollection.Find(ctx, query)
@@ -221,7 +248,6 @@ func queryDBHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(bson.M{"message": "Something went wrong"})
 	}
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(bson.M{"events": eventsFiltered})
 }
@@ -245,8 +271,6 @@ func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-//TODO JWT https://blog.logrocket.com/jwt-authentication-go/
-//TODO refactor connect to DB. add health check to the first function
 //TODO create function for errors
 //TODO template to show events
 //TODO probably replace MongoDB with elasticsearch
@@ -254,10 +278,13 @@ func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 //TODO add enviroment for tags/labels
 //TODO create admin enviroment
 //TODO show results in html
-//TODO bearer token to JWT
-//TODO different http for GET, POST
+//TODO bearer token to JWT https://blog.logrocket.com/jwt-authentication-go/
 //TODO timestamp higher, between etc
 //TODO get with {id}
+//TODO prometheus
+//TODO closures error handling
+//TODO methods if necessary
+//TODO concurrency thread safe
 
 //TODO sos search mongo from data and metadata
 //TODO SOS mongo secondary keys etc
