@@ -72,20 +72,18 @@ func registrationsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func writeToFile(jsonInput bson.M) {
-	//file, err := os.Open("mongo/temp.json")
-	file, err := os.Create("mongo/temp.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
+func writeToFile(jsonInput string) {
 
-	var jsonStr []byte
-	jsonStr, err = bson.Marshal(jsonInput)
+	f, err := os.OpenFile("mongo/temp.json", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
-	file.WriteString(string(jsonStr))
+
+	defer f.Close()
+
+	if _, err = f.WriteString(jsonInput); err != nil {
+		panic(err)
+	}
 }
 
 func checkToken(r *http.Request) bool {
@@ -127,13 +125,17 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	eventCollection := db.Collection("events")
 
 	bsonFromEvent := createEventBson(inputEvent)
+	stringFromEvent, err := createEventString(inputEvent)
+	if err != nil {
+		log.Error("Input to String conversion failed")
+	}
 
 	_, err = eventCollection.InsertOne(ctx, bsonFromEvent)
 	w.Header().Set("Content-Type", "application/json")
 
 	if err != nil {
 		log.Fatal(err)
-		writeToFile(bsonFromEvent)
+		writeToFile(stringFromEvent)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(bson.M{
 			"message": "Error while inserting event. Event is stored in temporal storage",
@@ -164,6 +166,14 @@ func createEventFromInput(r *http.Request) Event {
 	delete(event.Data, "service")
 
 	return event
+}
+
+func createEventString(event Event) (string, error) {
+	out, err := json.Marshal(event)
+	if err != nil {
+		panic(err)
+	}
+	return string(out), err
 }
 
 func createEventBson(inputEvent Event) bson.M {
