@@ -1,37 +1,23 @@
 package main
 
 import (
-	"net/http"
-	"net/http/httptest"
+	"go.mongodb.org/mongo-driver/bson"
 	"testing"
 )
 
-//https://blog.questionable.services/article/testing-http-handlers-go/
-func Test_storeEventsHandler(t *testing.T) {
-	// Create a request to pass to our handler. We don't have any query parameters for now, so we'll
-	// pass 'nil' as the third parameter.
-	req, err := http.NewRequest("GET", "/api/v1/events?eventType=event&service=BILLING", nil)
-	if err != nil {
-		t.Fatal(err)
+func Test_writeToFile(t *testing.T) {
+	type args struct {
+		json bson.M
 	}
-
-	// We create a ResponseRecorder (which satisfies http.ResponseWriter) to record the response.
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(storeEventsHandler)
-
-	// Our handlers satisfy http.Handler, so we can call their ServeHTTP method
-	// directly and pass in our Request and ResponseRecorder.
-	handler.ServeHTTP(rr, req)
-
-	// Check the status code is what we expect.
-	if status := rr.Code; status == http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v",
-			status, http.StatusOK)
+	tests := []struct {
+		name string
+		args args
+	}{
+		// TODO: Add test cases.
 	}
-	// Check the response body is what we expect.
-	expected := `{"alive": true}`
-	if rr.Body.String() != expected {
-		t.Errorf("handler returned unexpected body: got %v want %v",
-			rr.Body.String(), expected)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			writeToFile(tt.args.json)
+		})
 	}
 }
