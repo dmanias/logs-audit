@@ -2,58 +2,54 @@ package main
 
 import (
 	"crypto/rand"
-	"database/sql"
 	"encoding/base64"
 	"errors"
+	"github.com/dmanias/logs-audit/config"
+	"github.com/dmanias/logs-audit/mongo"
+	log "github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/crypto/bcrypt"
 	"time"
 )
 
+type User struct {
+	UserId          string `bson:"_id"`
+	Username        string `bson:"username"`
+	AccountPassword string `bson:"accountPassword"`
+}
+
+type Token struct {
+	UserId      string `bson:"userId"`
+	AuthToken   string `bson:"auth_token"`
+	GeneratedAt string `bson:"generatedAt"`
+	ExpiresAt   string `bson:"expiresAt"`
+}
+
 func generateToken(username string, password string) (map[string]interface{}, error) {
 
-	db, err := sql.Open("mysql", "sample_db_user:EXAMPLE_PASSWORD@tcp(127.0.0.1:3306)/sample_db")
+	cfg := config.New()
+	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
+	if err != nil {
+		log.Fatal(err)
+		panic(err)
+	}
+
+	defer mongo.Close(mongoClient, ctx, cancel)
+
+	db := mongoClient.Database("db")
+	usersCollection := db.Collection("users")
+
+	user := User{}
+	err = usersCollection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
 	if err != nil {
 		return nil, err
 	}
 
-	queryString := "select user_id, password from system_users where username = ?"
-
-	stmt, err := db.Prepare(queryString)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer stmt.Close()
-
-	userId := 0
-	accountPassword := ""
-
-	err = stmt.QueryRow(username).Scan(&userId, &accountPassword)
-
-	if err != nil {
-
-		if err == sql.ErrNoRows {
-			return nil, errors.New("Invalid username or password.\r\n")
-		}
-
-		return nil, err
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(accountPassword), []byte(password))
+	err = bcrypt.CompareHashAndPassword([]byte(user.AccountPassword), []byte(password))
 
 	if err != nil {
 		return nil, errors.New("Invalid username or password.\r\n")
 	}
-
-	queryString = "insert into authentication_tokens(user_id, auth_token, generated_at, expires_at) values (?, ?, ?, ?)"
-	stmt, err = db.Prepare(queryString)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer stmt.Close()
 
 	randomToken := make([]byte, 32)
 
@@ -68,12 +64,16 @@ func generateToken(username string, password string) (map[string]interface{}, er
 	const timeLayout = "2006-01-02 15:04:05"
 
 	dt := time.Now()
-	expirtyTime := time.Now().Add(time.Minute * 60)
+	expiryTime := time.Now().Add(time.Minute * 60)
 
 	generatedAt := dt.Format(timeLayout)
-	expiresAt := expirtyTime.Format(timeLayout)
+	expiresAt := expiryTime.Format(timeLayout)
 
-	_, err = stmt.Exec(userId, authToken, generatedAt, expiresAt)
+	tokensCollection := db.Collection("authentication_tokens")
+
+	tokenBson := createTokenBson(user.UserId, authToken, generatedAt, expiresAt)
+
+	_, err = tokensCollection.InsertOne(ctx, tokenBson)
 
 	if err != nil {
 		return nil, err
@@ -89,64 +89,45 @@ func generateToken(username string, password string) (map[string]interface{}, er
 	return tokenDetails, nil
 }
 
-func validateToken(authToken string) (map[string]interface{}, error) {
+func createTokenBson(userId string, authToken string, generatedAt string, expiresAt string) bson.M {
+	bson := bson.M{
+		"userId":      userId,
+		"authToken":   authToken,
+		"generatedAt": generatedAt,
+		"expiresAt":   expiresAt,
+	}
+	return bson
+}
+func validateToken(authToken string) (bool, error) {
 
-	db, err := sql.Open("mysql", "sample_db_user:EXAMPLE_PASSWORD@tcp(127.0.0.1:3306)/sample_db")
-
+	cfg := config.New()
+	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
+		panic(err)
 	}
 
-	queryString := `select 
-                system_users.user_id,
-                username,
-                generated_at,
-                expires_at                         
-            from authentication_tokens
-            left join system_users
-            on authentication_tokens.user_id = system_users.user_id
-            where auth_token = ?`
+	defer mongo.Close(mongoClient, ctx, cancel)
 
-	stmt, err := db.Prepare(queryString)
+	db := mongoClient.Database("db")
+	tokensCollection := db.Collection("authentication_tokens")
 
+	token := Token{}
+
+	err = tokensCollection.FindOne(ctx, bson.M{"authToken": authToken}).Decode(&token)
 	if err != nil {
-		return nil, err
-	}
-
-	defer stmt.Close()
-
-	userId := 0
-	username := ""
-	generatedAt := ""
-	expiresAt := ""
-
-	err = stmt.QueryRow(authToken).Scan(&userId, &username, &generatedAt, &expiresAt)
-
-	if err != nil {
-
-		if err == sql.ErrNoRows {
-			return nil, errors.New("Invalid access token.\r\n")
-		}
-
-		return nil, err
+		return false, err
 	}
 
 	const timeLayout = "2006-01-02 15:04:05"
 
-	expiryTime, _ := time.Parse(timeLayout, expiresAt)
+	expiryTime, _ := time.Parse(timeLayout, token.ExpiresAt)
 	currentTime, _ := time.Parse(timeLayout, time.Now().Format(timeLayout))
 
 	if expiryTime.Before(currentTime) {
-		return nil, errors.New("The token is expired.\r\n")
+		return false, errors.New("The token is expired.\r\n")
 	}
 
-	userDetails := map[string]interface{}{
-		"user_id":      userId,
-		"username":     username,
-		"generated_at": generatedAt,
-		"expires_at":   expiresAt,
-	}
-
-	return userDetails, nil
+	return true, nil
 
 }

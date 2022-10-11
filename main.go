@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -21,12 +22,43 @@ type Event struct {
 	Data      map[string]interface{} `json:"-"` // Rest of the fields should go here.
 }
 
+type Credentials struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 func main() {
 	router := mux.NewRouter()
 	router.HandleFunc("/events", queryDBHandler).Methods("GET")
 	router.HandleFunc("/events", storeEventsHandler).Methods("POST")
-	router.HandleFunc("/auth", authHandler).Methods("GET")
+	router.HandleFunc("/auth", authenticationHandler).Methods("GET")
+	router.HandleFunc("/auth", registrationsHandler).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", router))
+}
+
+func registrationsHandler(w http.ResponseWriter, r *http.Request) {
+
+	var credentials Credentials
+	err := json.NewDecoder(r.Body).Decode(&credentials)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if credentials.Username == "" || credentials.Password == "" {
+
+		fmt.Fprintf(w, "Please enter a valid username and password.\r\n")
+
+	} else {
+
+		response, err := registerUser(credentials.Username, credentials.Password)
+
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+		} else {
+			fmt.Fprintf(w, response)
+		}
+	}
 }
 
 func writeToFile(json bson.M) {
@@ -45,7 +77,22 @@ func writeToFile(json bson.M) {
 	file.WriteString(string(jsonStr))
 }
 
+func checkToken(r *http.Request) bool {
+	authToken := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
+	validToken, err := validateToken(authToken)
+	if err != nil {
+		log.Fatal(err)
+		panic(err)
+	}
+	return validToken
+}
+
 func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
+
+	if !checkToken(r) {
+		panic("Token is not valid")
+	}
+
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
@@ -63,9 +110,9 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	defer mongo.Close(mongoClient, ctx, cancel)
 
 	db := mongoClient.Database("db")
-	eventCollection := db.Collection("event")
+	eventCollection := db.Collection("events")
 
-	bsonFromEvent := createBsonObject(inputEvent)
+	bsonFromEvent := createEventBson(inputEvent)
 
 	_, err = eventCollection.InsertOne(ctx, bsonFromEvent)
 	w.Header().Set("Content-Type", "application/json")
@@ -105,7 +152,7 @@ func createEventFromInput(r *http.Request) Event {
 	return event
 }
 
-func createBsonObject(inputEvent Event) bson.M {
+func createEventBson(inputEvent Event) bson.M {
 
 	bsonFromJson := bson.M{
 		"timestamp": inputEvent.Timestamp,
@@ -114,7 +161,6 @@ func createBsonObject(inputEvent Event) bson.M {
 		"data":      inputEvent.Data,
 		"tags":      bson.A{"coding", "test"},
 	}
-	fmt.Println("createBsonObject", bsonFromJson)
 	return bsonFromJson
 }
 
@@ -143,7 +189,10 @@ func buildBsonObject(r *http.Request) bson.M {
 }
 
 func queryDBHandler(w http.ResponseWriter, r *http.Request) {
-	// https://www.mongodb.com/blog/post/quick-start-golang--mongodb--how-to-read-documents
+
+	if !checkToken(r) {
+		panic("Token is not valid")
+	}
 
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
@@ -155,41 +204,42 @@ func queryDBHandler(w http.ResponseWriter, r *http.Request) {
 	defer mongo.Close(mongoClient, ctx, cancel)
 
 	db := mongoClient.Database("db")
-	eventsCollection := db.Collection("event")
+	eventsCollection := db.Collection("events")
 
 	query := buildBsonObject(r)
-	fmt.Println(query)
 
 	filterCursor, err := eventsCollection.Find(ctx, query)
 	if err != nil {
-		log.Fatal(err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(bson.M{"message": "Something went wrong"})
 	}
 
 	var eventsFiltered []bson.M
 	if err = filterCursor.All(ctx, &eventsFiltered); err != nil {
-		log.Fatal(err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(bson.M{"message": "Something went wrong"})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(eventsFiltered)
+	json.NewEncoder(w).Encode(bson.M{"events": eventsFiltered})
 }
 
-func authHandler(w http.ResponseWriter, r *http.Request) {
+func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 	username, password, ok := r.BasicAuth()
-	if ok {
 
+	if ok {
 		tokenDetails, err := generateToken(username, password)
 
 		if err != nil {
 			fmt.Fprintf(w, err.Error())
 		} else {
-
 			enc := json.NewEncoder(w)
 			enc.SetIndent("", "  ")
 			enc.Encode(tokenDetails)
 		}
 	} else {
-
 		fmt.Fprintf(w, "You require a username/password to get a token.\r\n")
 	}
 
@@ -214,4 +264,6 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 //TODO SOS sort the service or db
 //TODO SOS refactor (functions packages) and tests
 //TODO SOS add tags to the query
+//TODO SOS fix timestamp query
 //TODO SOS logs and if
+//TODO SOS users index username
