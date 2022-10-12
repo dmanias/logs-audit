@@ -1,12 +1,12 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/dmanias/logs-audit/auth"
 	"github.com/dmanias/logs-audit/config"
-	_ "github.com/dmanias/logs-audit/docs"
-	"github.com/dmanias/logs-audit/mongo"
+	"github.com/dmanias/logs-audit/monitor"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.mongodb.org/mongo-driver/bson"
@@ -17,6 +17,19 @@ import (
 	"time"
 )
 
+/*
+This is a logs audit API. Events from logs are aggregated and the user can run queries on them.
+Events are indexed by their invariant parts and the variant parts are stored all together under the name data.
+The endpoints are protected with bearer token authentication.
+*/
+
+import (
+	"encoding/json"
+	_ "github.com/dmanias/logs-audit/docs"
+	"github.com/dmanias/logs-audit/mongo"
+)
+
+// The Event struct creates the event from the input and add it to DB
 type Event struct {
 	Timestamp time.Time              `json:"timestamp"`
 	Service   string                 `json:"service"`
@@ -24,6 +37,7 @@ type Event struct {
 	Data      map[string]interface{} `json:"-"` // Rest of the fields should go here.
 }
 
+// The Credentials struct handles and stores the user credentials to the DB
 type Credentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -31,13 +45,16 @@ type Credentials struct {
 
 // @title Logs Audit API documentation
 // @version 1.0.0
-
 // @host localhost:8080
 // @BasePath /api/v1
+// @securityDefinitions.basic BasicAuth
 
+//@desc main() exposes 4 endpoints for user registration, user authentication, logs aggregation and queries
 func main() {
 	muxRouter := mux.NewRouter()
 	router := muxRouter.PathPrefix("/api/v1").Subrouter() //Create base path for all routes
+	router.Use(monitor.PrometheusMiddleware)
+	router.Handle("/metrics", promhttp.Handler())
 	router.HandleFunc("/events", searchDBHandler).Methods("GET")
 	router.HandleFunc("/events", storeEventsHandler).Methods("POST")
 	router.HandleFunc("/auth", authenticationHandler).Methods("GET")
@@ -47,13 +64,26 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
+// registrationsHandler ... Register a user
+// @Summary Add a new user to DB
+// @Description add new users
+// @Tags Auth
+// @Accept json
+// @Param Input body Credentials false "Body (raw, json)"
+// @Success 200 {json} json
+// @Failure 500 {json} json
+// @Router /auth [post]
 func registrationsHandler(w http.ResponseWriter, r *http.Request) {
-
+	w.Header().Set("Content-Type", "application/json")
 	var credentials Credentials
 	err := json.NewDecoder(r.Body).Decode(&credentials)
 	if err != nil {
+		log.Info(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(bson.M{
+			"message": "Error while registering user. Please try again",
+		})
 	}
 
 	if credentials.Username == "" || credentials.Password == "" {
@@ -62,61 +92,82 @@ func registrationsHandler(w http.ResponseWriter, r *http.Request) {
 
 	} else {
 
-		response, err := registerUser(credentials.Username, credentials.Password)
+		response, err := auth.RegisterUser(credentials.Username, credentials.Password)
 
 		if err != nil {
-			fmt.Fprintf(w, err.Error())
+			log.Error(err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(bson.M{
+				"message": "Error while registering user. Please try again",
+			})
 		} else {
-			fmt.Fprintf(w, response)
+			log.Info(response)
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(bson.M{
+				"message": "New user is registered",
+			})
 		}
 	}
 }
 
+//@desc writeToFile() writes the input to a temporary storage ("mongo/temp.json") when the DB is down
+//@parameter {string} jsonInput. The input in json string
 func writeToFile(jsonInput string) {
 
 	f, err := os.OpenFile("mongo/temp.json", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
-		panic(err)
+		log.Error(err.Error())
 	}
 
 	defer f.Close()
 
 	if _, err = f.WriteString(jsonInput); err != nil {
-		panic(err)
+		log.Error(err.Error())
 	}
 }
 
+//@desc checkToken() check if the bearer token is valid
+//@parameter {Request} r. The API input
 func checkToken(r *http.Request) bool {
 	authToken := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
-	validToken, err := validateToken(authToken)
+	validToken, err := auth.ValidateToken(authToken)
 	if err != nil {
-		log.Fatal(err)
-		panic(err)
+		log.Error(err.Error())
 	}
 	return validToken
 }
 
+// searchDBHandler ... Search in DB
+// @Summary Brings documents according to the criteria
+// @Description get documents
+// @Tags Events
+// @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
+// @Param Input body Event false "Body (raw, json)"
+// @Success 201 {json} Event
+// @Failure 400, 403, 500 {json} error message
+// @Router /events [post]
 func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	/*
-		if !checkToken(r) {
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid"})
-		}
-	*/
+
+	if !checkToken(r) {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid"})
+	}
 
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
-		log.Fatal(err)
-		panic(err)
+		log.Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
 	}
 
-	inputEvent := createEventFromInput(r)
+	inputEvent, err := createEventFromInput(r)
 
 	if err != nil {
-		log.Fatal(err)
-		panic(err)
+		log.Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
 	}
 
 	defer mongo.Close(mongoClient, ctx, cancel)
@@ -131,10 +182,9 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = eventCollection.InsertOne(ctx, bsonFromEvent)
-	w.Header().Set("Content-Type", "application/json")
 
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 		writeToFile(stringFromEvent)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(bson.M{
@@ -147,35 +197,45 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func createEventFromInput(r *http.Request) Event {
+//@desc createEventFromInput() creates an Event from the input
+//@parameter {Request} r. The API input
+func createEventFromInput(r *http.Request) (Event, error) {
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		panic(err)
+		log.Error(err.Error())
+		return Event{}, err
 	}
 
 	event := Event{}
 	if err := json.Unmarshal(body, &event); err != nil {
-		panic(err)
+		log.Error(err.Error())
+		return Event{}, err
 	}
 	if err := json.Unmarshal(body, &event.Data); err != nil {
-		panic(err)
+		log.Error(err.Error())
+		return Event{}, err
 	}
 	delete(event.Data, "timestamp")
 	delete(event.Data, "eventType")
 	delete(event.Data, "service")
 
-	return event
+	return event, nil
 }
 
+//@desc createEventString() creates a string from an Event
+//@parameter {Event} event. An event
 func createEventString(event Event) (string, error) {
 	out, err := json.Marshal(event)
 	if err != nil {
-		panic(err)
+		log.Error(err.Error())
+		return "", err
 	}
-	return string(out), err
+	return string(out), nil
 }
 
+//@desc createEventString() creates a string from an Event
+//@parameter {Event} event. An event
 func createEventBson(inputEvent Event) bson.M {
 
 	bsonFromJson := bson.M{
@@ -188,6 +248,8 @@ func createEventBson(inputEvent Event) bson.M {
 	return bsonFromJson
 }
 
+//@desc buildBsonObject() creates a bson.M from the API input
+//@parameter {Request} r. The API input
 func buildBsonObject(r *http.Request) bson.M {
 
 	hasTimestamp := r.URL.Query().Has("timeStamp")
@@ -215,7 +277,7 @@ func buildBsonObject(r *http.Request) bson.M {
 // searchDBHandler ... Search in DB
 // @Summary Brings documents according to the criteria
 // @Description get documents
-// @Tags db
+// @Tags Events
 // @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
 // @Param timestamp query string false "timestamp"
 // @Param service query string false "the name of the service that sends the event"
@@ -223,7 +285,7 @@ func buildBsonObject(r *http.Request) bson.M {
 // @Param data query string false "extra data to search in the event body"
 // @Param tags query string false "metadata given from the service when stores the events"
 // @Success 200 {json} Event
-// @Failure 400 {json} error message
+// @Failure 400, 500 {json} error message
 // @Router /events [get]
 func searchDBHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -235,8 +297,9 @@ func searchDBHandler(w http.ResponseWriter, r *http.Request) {
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
-		log.Fatal(err)
-		panic(err)
+		log.Fatal(err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
 	}
 
 	defer mongo.Close(mongoClient, ctx, cancel)
@@ -247,26 +310,34 @@ func searchDBHandler(w http.ResponseWriter, r *http.Request) {
 
 	filterCursor, err := eventsCollection.Find(ctx, query)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
+		log.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(bson.M{"message": "Something went wrong"})
+		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
 	}
 
 	var eventsFiltered []bson.M
 	if err = filterCursor.All(ctx, &eventsFiltered); err != nil {
-		w.Header().Set("Content-Type", "application/json")
+		log.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(bson.M{"message": "Something went wrong"})
+		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(bson.M{"events": eventsFiltered})
 }
 
+// searchDBHandler ... Search in DB
+// @Summary Brings documents according to the criteria
+// @Description get documents
+// @Tags Auth
+// @Security BasicAuth
+// @Success 200 {json} Event
+// @Failure 400 {json} error message
+// @Router /auth [get]
 func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 	username, password, ok := r.BasicAuth()
 
 	if ok {
-		tokenDetails, err := generateToken(username, password)
+		tokenDetails, err := auth.GenerateToken(username, password)
 
 		if err != nil {
 			fmt.Fprintf(w, err.Error())

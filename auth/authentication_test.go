@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 
 //Test generateToken from authentication.go
 //Takes the string input and checks the map,error output, 2 times
-func Test_generateToken(t *testing.T) {
+func Test_GenerateToken(t *testing.T) {
 	type args struct {
 		username string
 		password string
@@ -36,7 +36,7 @@ func Test_generateToken(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := generateToken(tt.args.username, tt.args.password)
+			got, err := GenerateToken(tt.args.username, tt.args.password)
 			fmt.Println(got)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("generateToken() error = %v, wantErr %v", err, tt.wantErr)
@@ -90,7 +90,7 @@ func Test_createTokenBson(t *testing.T) {
 
 //Test validateToken from authentication.go
 //Takes the string input and checks the bool,error output, 2 times
-func Test_validateToken(t *testing.T) {
+func Test_ValidateToken(t *testing.T) {
 	type args struct {
 		authToken string
 	}
@@ -114,7 +114,7 @@ func Test_validateToken(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := validateToken(tt.args.authToken)
+			got, err := ValidateToken(tt.args.authToken)
 			fmt.Println(got)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("validateToken() error = %v, wantErr %v", err, tt.wantErr)

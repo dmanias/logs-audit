@@ -8,11 +8,73 @@
     "host": "localhost:8080",
     "basePath": "/api/v1",
     "paths": {
+        "/auth": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "get documents",
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Brings documents according to the criteria",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "json"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "json"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "add new users",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Add a new user to DB",
+                "parameters": [
+                    {
+                        "description": "Body (raw, json)",
+                        "name": "Input",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/main.Credentials"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "json"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "json"
+                        }
+                    }
+                }
+            }
+        },
         "/events": {
             "get": {
                 "description": "get documents",
                 "tags": [
-                    "db"
+                    "Events"
                 ],
                 "summary": "Brings documents according to the criteria",
                 "parameters": [
@@ -69,7 +131,78 @@
                         }
                     }
                 }
+            },
+            "post": {
+                "description": "get documents",
+                "tags": [
+                    "Events"
+                ],
+                "summary": "Brings documents according to the criteria",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "Bearer \u003cAdd access token here\u003e",
+                        "description": "Insert your access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Body (raw, json)",
+                        "name": "Input",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/main.Event"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "json"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "json"
+                        }
+                    }
+                }
             }
+        }
+    },
+    "definitions": {
+        "main.Credentials": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.Event": {
+            "type": "object",
+            "properties": {
+                "eventType": {
+                    "type": "string"
+                },
+                "service": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BasicAuth": {
+            "type": "basic"
         }
     }
 }

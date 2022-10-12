@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"crypto/rand"
@@ -25,13 +25,16 @@ type Token struct {
 	ExpiresAt   string `bson:"expiresAt"`
 }
 
-func generateToken(username string, password string) (map[string]interface{}, error) {
+//@desc generateToken() generates a map[string]interface with the token
+//@parameter {string} username. The username
+//@parameter {string} password. The password
+func GenerateToken(username string, password string) (map[string]interface{}, error) {
 
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
 		log.Fatal(err)
-		panic(err)
+		return nil, err
 	}
 
 	defer mongo.Close(mongoClient, ctx, cancel)
@@ -98,13 +101,13 @@ func createTokenBson(userId string, authToken string, generatedAt string, expire
 	}
 	return bson
 }
-func validateToken(authToken string) (bool, error) {
+func ValidateToken(authToken string) (bool, error) {
 
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
 		log.Fatal(err)
-		panic(err)
+		return false, err
 	}
 
 	defer mongo.Close(mongoClient, ctx, cancel)

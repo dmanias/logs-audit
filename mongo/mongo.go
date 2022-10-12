@@ -65,31 +65,6 @@ func Connect(uri string) (*mongo.Client, context.Context,
 	return client, ctx, cancel, err
 }
 
-// query is user defined method used to query MongoDB,
-// that accepts mongo.client,context, database name,
-// collection name, a query and field.
-
-//  database name and collection name is of type
-// string. query is of type interface.
-// field is of type interface, which limits
-// the field being returned.
-
-// query method returns a cursor and error.
-
-func Query(client *mongo.Client, ctx context.Context,
-	dataBase, col string, query, field interface{}) (result *mongo.Cursor, err error) {
-
-	// select database and collection.
-	collection := client.Database(dataBase).Collection(col)
-
-	// collection has an method Find,
-	// that returns a mongo.cursor
-	// based on query and field.
-	result, err = collection.Find(ctx, query,
-		options.Find().SetProjection(field))
-	return
-}
-
 // This is a user defined method that accepts
 // mongo.Client and context.Context
 // This method used to ping the mongoDB, return error if any.
@@ -105,10 +80,4 @@ func Ping(client *mongo.Client, ctx context.Context) bool {
 	}
 	log.Debug("pinged successfully mongodb")
 	return true
-}
-
-func HealthCheck(client *mongo.Client, ctx context.Context) {
-	if err := client.Ping(ctx, readpref.Primary()); err != nil {
-		log.Error(err)
-	}
 }

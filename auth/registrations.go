@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"github.com/dmanias/logs-audit/config"
@@ -8,7 +8,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func registerUser(username string, password string) (string, error) {
+//@desc registerUser() register a new user
+//@parameter {string} username. The username
+//@parameter {string} password. The password
+func RegisterUser(username string, password string) (string, error) {
 
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
@@ -38,6 +41,9 @@ func registerUser(username string, password string) (string, error) {
 	return "Success\r\n", nil
 }
 
+//@desc createUserBson() creates a bson.M from the user credentials
+//@parameter {string} username. The username
+//@parameter {string} password. The password
 func createUserBson(username string, password string) (bson.M, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {

@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 
 //Test generateToken from registration.go
 //Takes the string input and checks the string,error output, 2 times
-func Test_registerUser(t *testing.T) {
+func Test_RegisterUser(t *testing.T) {
 	type args struct {
 		username string
 		password string
@@ -34,7 +34,7 @@ func Test_registerUser(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := registerUser(tt.args.username, tt.args.password)
+			got, err := RegisterUser(tt.args.username, tt.args.password)
 			fmt.Println(got)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("registerUser() error = %v, wantErr %v", err, tt.wantErr)
