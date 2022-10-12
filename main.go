@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"github.com/dmanias/logs-audit/auth"
 	"github.com/dmanias/logs-audit/config"
-	"github.com/dmanias/logs-audit/monitor"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -13,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -53,7 +55,7 @@ type Credentials struct {
 func main() {
 	muxRouter := mux.NewRouter()
 	router := muxRouter.PathPrefix("/api/v1").Subrouter() //Create base path for all routes
-	router.Use(monitor.PrometheusMiddleware)
+	router.Use(prometheusMiddleware)
 	router.Handle("/metrics", promhttp.Handler())
 	router.HandleFunc("/events", searchDBHandler).Methods("GET")
 	router.HandleFunc("/events", storeEventsHandler).Methods("POST")
@@ -350,6 +352,76 @@ func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "You require a username/password to get a token.\r\n")
 	}
 
+}
+
+//@desc Monitoring
+//Initialization, handling and Prometheus structs
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func NewResponseWriter(w http.ResponseWriter) *responseWriter {
+	return &responseWriter{w, http.StatusOK}
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+var totalRequests = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "http_requests_total",
+		Help: "Number of get requests.",
+	},
+	[]string{"path"},
+)
+
+var responseStatus = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "response_status",
+		Help: "Status of HTTP response",
+	},
+	[]string{"status"},
+)
+
+var httpDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Name: "http_response_time_seconds",
+	Help: "Duration of HTTP requests.",
+}, []string{"path"})
+
+func prometheusMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		route := mux.CurrentRoute(r)
+		path, _ := route.GetPathTemplate()
+
+		timer := prometheus.NewTimer(httpDuration.WithLabelValues(path))
+		rw := NewResponseWriter(w)
+		next.ServeHTTP(rw, r)
+
+		statusCode := rw.statusCode
+
+		responseStatus.WithLabelValues(strconv.Itoa(statusCode)).Inc()
+		totalRequests.WithLabelValues(path).Inc()
+
+		timer.ObserveDuration()
+	})
+}
+
+func init() {
+	err := prometheus.Register(totalRequests)
+	if err != nil {
+		panic(err)
+	}
+	err = prometheus.Register(responseStatus)
+	if err != nil {
+		panic(err)
+	}
+	err = prometheus.Register(httpDuration)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //TODO create function for errors
