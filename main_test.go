@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-//Test writeToFile from main
-//Check if writes 2 jsons in the file when the db is down
+//Test writeToFile from main.go
+//Takes the string input and writes is to mongo/temp.json file, 2 times
 func Test_writeToFile(t *testing.T) {
 	type args struct {
 		jsonInput string
@@ -36,8 +36,8 @@ func Test_writeToFile(t *testing.T) {
 	}
 }
 
-//Test createEventString from main
-//Check if events are correctly transformed to string
+//Test createEventString from main.go
+//Takes the Event input and checks the string,error output, 2 times
 func Test_createEventString(t *testing.T) {
 	data1 := map[string]interface{}{
 		"test": "delicious",
@@ -102,8 +102,8 @@ func Test_createEventString(t *testing.T) {
 	}
 }
 
-//Test createEventBson from main
-//Check if events are correctly transformed to bson
+//Test createEventBson from main.go
+//Takes the Event input and checks the bson.M output, 2 times
 func Test_createEventBson(t *testing.T) {
 	data1 := map[string]interface{}{
 		"test": "delicious",
