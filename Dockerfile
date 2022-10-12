@@ -7,4 +7,4 @@ ENV GO111MODULE=on \
 WORKDIR /
 EXPOSE 8080
 COPY . .
-CMD ["go", "test", "."]
+CMD ["go", "run", "."]
