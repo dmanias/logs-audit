@@ -19,7 +19,16 @@ func Test_generateToken(t *testing.T) {
 		want    map[string]interface{}
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{name: "Input 1",
+			args: args{
+				username: "dmanias",
+				password: "1234",
+			}},
+		{name: "Input 2",
+			args: args{
+				username: "dmanias",
+				password: "12345",
+			}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -47,7 +56,18 @@ func Test_createTokenBson(t *testing.T) {
 		args args
 		want bson.M
 	}{
-		// TODO: Add test cases.
+		{name: "Input 1",
+			args: args{
+				userId:    "dmanias",
+				authToken: "1234",
+				generatedAt string
+				expiresAt   string
+			}},
+		{name: "Input 2",
+			args: args{
+				username: "dmanias",
+				password: "12345",
+			}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
