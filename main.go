@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/dmanias/logs-audit/auth"
 	"github.com/dmanias/logs-audit/config"
+	_ "github.com/dmanias/logs-audit/docs"
+	"github.com/dmanias/logs-audit/mongo"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -16,18 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-)
-
-/*
-This is a logs audit API. Events from logs are aggregated and the user can run queries on them.
-Events are indexed by their invariant parts and the variant parts are stored all together under the name data.
-The endpoints are protected with bearer token authentication.
-*/
-
-import (
-	"encoding/json"
-	_ "github.com/dmanias/logs-audit/docs"
-	"github.com/dmanias/logs-audit/mongo"
 )
 
 // The Event struct creates the event from the input and add it to DB
@@ -255,9 +246,7 @@ func createEventString(event Event) (string, error) {
 //@desc createEventString() creates a string from an Event
 //@parameter {Event} event. An event
 func createEventBson(inputEvent Event) bson.M {
-
-	//dataStr := json.Unmarshal(inputEvent.Data)
-
+	//TODO add input for tags
 	fmt.Println("tafs", bson.A{"coding", "test"})
 
 	//b := new(bytes.Buffer)
