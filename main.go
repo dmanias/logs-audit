@@ -32,19 +32,11 @@ import (
 
 // The Event struct creates the event from the input and add it to DB
 type Event struct {
-	Timestamp time.Time `json:"timestamp"`
-	Service   string    `json:"service"`
-	EventType string    `json:"eventType"`
-	Data      string    `json:"data"` // Rest of the fields should go here.
-	Tags      string    `json:"tags"`
-}
-
-type EventDB struct {
-	Timestamp time.Time `bson:"timestamp"`
-	Service   string    `bson:"service"`
-	EventType string    `bson:"eventType"`
-	Data      string    `bson:"data"` // Rest of the fields should go here.
-	Tags      string    `bson:"tags"`
+	Timestamp time.Time              `json:"timestamp"`
+	Service   string                 `json:"service"`
+	EventType string                 `json:"eventType"`
+	Data      map[string]interface{} `json:"-"` // Rest of the fields should go here.
+	Tags      string                 `json:"tags"`
 }
 
 // The Credentials struct handles and stores the user credentials to the DB
@@ -223,37 +215,28 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 //@desc createEventFromInput() creates an Event from the input
 //@parameter {Request} r. The API input
 func createEventFromInput(r *http.Request) (Event, error) {
-	//Request body
+	//Read from body
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Error(err.Error())
+		log.Error(err)
 		return Event{}, err
 	}
 
 	event := Event{}
 	if err := json.Unmarshal(body, &event); err != nil {
-		log.Error(err.Error())
+		log.Error(err)
 		return Event{}, err
 	}
-
-	//data := map[string]interface{}{}
 	if err := json.Unmarshal(body, &event.Data); err != nil {
-		//if err := bson.Unmarshal(body, &data); err != nil {
-		log.Error(err.Error())
+		log.Error(err)
 		return Event{}, err
 	}
+	//remove the following data for efficiency
 	delete(event.Data, "timestamp")
 	delete(event.Data, "eventType")
 	delete(event.Data, "service")
 
-	event, err = json.Marshal(event)
-	if err != nil {
-		log.Error(err.Error())
-		return event, err
-	}
-
-	//	event.Data = string(jsonStr)
-
+	fmt.Println("event", event)
 	return event, nil
 }
 
@@ -271,13 +254,21 @@ func createEventString(event Event) (string, error) {
 //@desc createEventString() creates a string from an Event
 //@parameter {Event} event. An event
 func createEventBson(inputEvent Event) bson.M {
-	//	dataStr := mapToString(inputEvent.Data)
 
+	//dataStr := json.Unmarshal(inputEvent.Data)
+
+	fmt.Println("tafs", bson.A{"coding", "test"})
+
+	var s string
+
+	s = fmt.Sprint(inputEvent)
+
+	fmt.Println("data", s)
 	bsonFromJson := bson.M{
 		"timestamp": inputEvent.Timestamp,
 		"service":   inputEvent.Service,
 		"eventType": inputEvent.EventType,
-		"data":      inputEvent.Data,
+		"data":      bson.A{s},
 		"tags":      bson.A{"coding", "test"},
 	}
 	return bsonFromJson
