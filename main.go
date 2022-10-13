@@ -32,10 +32,19 @@ import (
 
 // The Event struct creates the event from the input and add it to DB
 type Event struct {
-	Timestamp time.Time              `json:"timestamp"`
-	Service   string                 `json:"service"`
-	EventType string                 `json:"eventType"`
-	Data      map[string]interface{} `json:"-"` // Rest of the fields should go here.
+	Timestamp time.Time `json:"timestamp"`
+	Service   string    `json:"service"`
+	EventType string    `json:"eventType"`
+	Data      string    `json:"data"` // Rest of the fields should go here.
+	Tags      string    `json:"tags"`
+}
+
+type EventDB struct {
+	Timestamp time.Time `bson:"timestamp"`
+	Service   string    `bson:"service"`
+	EventType string    `bson:"eventType"`
+	Data      string    `bson:"data"` // Rest of the fields should go here.
+	Tags      string    `bson:"tags"`
 }
 
 // The Credentials struct handles and stores the user credentials to the DB
@@ -72,7 +81,7 @@ func main() {
 // @Accept json
 // @Param Input body Credentials false "Body (raw, json)"
 // @Success 200 {json} json
-// @Failure 500 {json} json
+// @Failure 400, 500 {json} json
 // @Router /auth [post]
 func registrationsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -83,13 +92,18 @@ func registrationsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(bson.M{
-			"message": "Error while registering user. Please try again",
+			"message": "Error while registering user. Please try again.",
 		})
+		return
 	}
 
 	if credentials.Username == "" || credentials.Password == "" {
 
-		fmt.Fprintf(w, "Please enter a valid username and password.\r\n")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(bson.M{
+			"message": "Please enter a valid username and password.",
+		})
+		return
 
 	} else {
 
@@ -99,14 +113,16 @@ func registrationsHandler(w http.ResponseWriter, r *http.Request) {
 			log.Error(err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(bson.M{
-				"message": "Error while registering user. Please try again",
+				"message": "Error while registering user. Please try again.",
 			})
+			return
 		} else {
 			log.Info(response)
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(bson.M{
-				"message": "New user is registered",
+				"message": "New user is registered.",
 			})
+			return
 		}
 	}
 }
@@ -149,39 +165,43 @@ func checkToken(r *http.Request) bool {
 // @Router /events [post]
 func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-
+	//Authentication check
 	if !checkToken(r) {
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid"})
-	}
+		return
 
+	}
+	//Connect to DB
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
 		log.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
+		return
 	}
-
+	//Create event from input
 	inputEvent, err := createEventFromInput(r)
-
 	if err != nil {
 		log.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
+		return
 	}
 
 	defer mongo.Close(mongoClient, ctx, cancel)
 
 	db := mongoClient.Database("db")
 	eventCollection := db.Collection("events")
-
+	//Create bson.M from event
 	bsonFromEvent := createEventBson(inputEvent)
 	stringFromEvent, err := createEventString(inputEvent)
 	if err != nil {
 		log.Error("Input to String conversion failed")
 	}
 
+	//Add to DB
 	_, err = eventCollection.InsertOne(ctx, bsonFromEvent)
 
 	if err != nil {
@@ -191,17 +211,19 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(bson.M{
 			"message": "Error while inserting event. Event is stored in temporal storage",
 		})
+		return
 	}
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(bson.M{
 		"message": "Event has been stored.",
 	})
+	return
 }
 
 //@desc createEventFromInput() creates an Event from the input
 //@parameter {Request} r. The API input
 func createEventFromInput(r *http.Request) (Event, error) {
-
+	//Request body
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Error(err.Error())
@@ -213,13 +235,24 @@ func createEventFromInput(r *http.Request) (Event, error) {
 		log.Error(err.Error())
 		return Event{}, err
 	}
+
+	//data := map[string]interface{}{}
 	if err := json.Unmarshal(body, &event.Data); err != nil {
+		//if err := bson.Unmarshal(body, &data); err != nil {
 		log.Error(err.Error())
 		return Event{}, err
 	}
 	delete(event.Data, "timestamp")
 	delete(event.Data, "eventType")
 	delete(event.Data, "service")
+
+	event, err = json.Marshal(event)
+	if err != nil {
+		log.Error(err.Error())
+		return event, err
+	}
+
+	//	event.Data = string(jsonStr)
 
 	return event, nil
 }
@@ -238,6 +271,7 @@ func createEventString(event Event) (string, error) {
 //@desc createEventString() creates a string from an Event
 //@parameter {Event} event. An event
 func createEventBson(inputEvent Event) bson.M {
+	//	dataStr := mapToString(inputEvent.Data)
 
 	bsonFromJson := bson.M{
 		"timestamp": inputEvent.Timestamp,
@@ -249,6 +283,8 @@ func createEventBson(inputEvent Event) bson.M {
 	return bsonFromJson
 }
 
+//mapToString(dataMap map[stringInterface])
+
 //@desc buildBsonObject() creates a bson.M from the API input
 //@parameter {Request} r. The API input
 func buildBsonObject(r *http.Request) bson.M {
@@ -257,6 +293,7 @@ func buildBsonObject(r *http.Request) bson.M {
 	hasService := r.URL.Query().Has("service")
 	hasEventType := r.URL.Query().Has("eventType")
 	hasData := r.URL.Query().Has("data")
+	hasTags := r.URL.Query().Has("tags")
 
 	query := bson.M{}
 	if hasTimestamp {
@@ -271,6 +308,10 @@ func buildBsonObject(r *http.Request) bson.M {
 
 	if hasService {
 		query["service"] = r.URL.Query().Get("service")
+	}
+
+	if hasTags {
+		query["tags"] = r.URL.Query().Get("tags")
 	}
 	return query
 }
@@ -290,30 +331,37 @@ func buildBsonObject(r *http.Request) bson.M {
 // @Router /events [get]
 func searchDBHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	//Authentication check
 	if !checkToken(r) {
 		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid"})
+		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid."})
+		return
 	}
-
+	//Connect to DB
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {
 		log.Fatal(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
+		return
 	}
 
 	defer mongo.Close(mongoClient, ctx, cancel)
 
 	db := mongoClient.Database("db")
 	eventsCollection := db.Collection("events")
+
+	//Build filter object
 	query := buildBsonObject(r)
 
+	fmt.Println(query)
 	filterCursor, err := eventsCollection.Find(ctx, query)
 	if err != nil {
 		log.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
+		return
 	}
 
 	var eventsFiltered []bson.M
@@ -321,6 +369,7 @@ func searchDBHandler(w http.ResponseWriter, r *http.Request) {
 		log.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(bson.M{"events": eventsFiltered})
@@ -341,14 +390,19 @@ func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 		tokenDetails, err := auth.GenerateToken(username, password)
 
 		if err != nil {
-			fmt.Fprintf(w, err.Error())
+			log.Error(err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(bson.M{"message": "An error occured. Please try again."})
+			return
 		} else {
 			enc := json.NewEncoder(w)
 			enc.SetIndent("", "  ")
 			enc.Encode(tokenDetails)
 		}
 	} else {
-		fmt.Fprintf(w, "You require a username/password to get a token.\r\n")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(bson.M{"message": "You require a username/password to get a token."})
+		return
 	}
 
 }
@@ -360,15 +414,18 @@ type responseWriter struct {
 	statusCode int
 }
 
+//@desc response writer for prometheus
 func NewResponseWriter(w http.ResponseWriter) *responseWriter {
 	return &responseWriter{w, http.StatusOK}
 }
 
+//@desc write header for prometheus
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+//registered variable
 var totalRequests = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "http_requests_total",
@@ -377,6 +434,7 @@ var totalRequests = prometheus.NewCounterVec(
 	[]string{"path"},
 )
 
+//registered variable
 var responseStatus = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "response_status",
@@ -385,12 +443,14 @@ var responseStatus = prometheus.NewCounterVec(
 	[]string{"status"},
 )
 
+//registered variable
 var httpDuration = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Name: "http_response_time_seconds",
 		Help: "Duration of HTTP requests.",
 	}, []string{"path"})
 
+//@desc Prometheus handler
 func prometheusMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		route := mux.CurrentRoute(r)
@@ -409,6 +469,7 @@ func prometheusMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// Prometheus Initialization (Below the metrics are shown in the metrics page)
 func init() {
 	err := prometheus.Register(totalRequests)
 	if err != nil {
@@ -434,7 +495,7 @@ func init() {
 //TODO bearer token to JWT https://blog.logrocket.com/jwt-authentication-go/
 //TODO timestamp higher, between etc
 //TODO get with {id}
-//TODO prometheus
+
 //TODO closures error handling
 //TODO methods if necessary
 //TODO concurrency thread safe
@@ -443,8 +504,6 @@ func init() {
 //TODO sos search mongo from data and metadata
 //TODO SOS mongo secondary keys etc
 //TODO SOS sort the service or db
-//TODO SOS refactor (functions packages) and tests
 //TODO SOS add tags to the query
 //TODO SOS fix timestamp query
-//TODO SOS logs and if
 //TODO SOS users index username
