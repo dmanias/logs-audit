@@ -231,6 +231,7 @@ func createEventFromInput(r *http.Request) (Event, error) {
 		log.Error(err)
 		return Event{}, err
 	}
+	fmt.Println("event", event)
 	//remove the following data for efficiency
 	delete(event.Data, "timestamp")
 	delete(event.Data, "eventType")
@@ -259,16 +260,18 @@ func createEventBson(inputEvent Event) bson.M {
 
 	fmt.Println("tafs", bson.A{"coding", "test"})
 
-	var s string
+	//b := new(bytes.Buffer)
+	bsonInput := bson.A{}
+	for _, value := range inputEvent.Data {
+		//fmt.Fprintf(b, "%s=\"%s\"\n", key, value)
+		bsonInput = append(bsonInput, value)
+	}
 
-	s = fmt.Sprint(inputEvent)
-
-	fmt.Println("data", s)
 	bsonFromJson := bson.M{
 		"timestamp": inputEvent.Timestamp,
 		"service":   inputEvent.Service,
 		"eventType": inputEvent.EventType,
-		"data":      bson.A{s},
+		"data":      bsonInput,
 		"tags":      bson.A{"coding", "test"},
 	}
 	return bsonFromJson
@@ -289,6 +292,7 @@ func buildBsonObject(r *http.Request) bson.M {
 	query := bson.M{}
 	if hasTimestamp {
 		query["timestamp"] = r.URL.Query().Get("timeStamp")
+
 	}
 	if hasEventType {
 		query["eventType"] = r.URL.Query().Get("eventType")
@@ -321,6 +325,8 @@ func buildBsonObject(r *http.Request) bson.M {
 // @Failure 400, 500 {json} error message
 // @Router /events [get]
 func searchDBHandler(w http.ResponseWriter, r *http.Request) {
+	//TODO search greater and less than the timestamp given
+	//TODO sort results if necessary
 	w.Header().Set("Content-Type", "application/json")
 	//Authentication check
 	if !checkToken(r) {
@@ -495,6 +501,6 @@ func init() {
 //TODO sos search mongo from data and metadata
 //TODO SOS mongo secondary keys etc
 //TODO SOS sort the service or db
-//TODO SOS add tags to the query
-//TODO SOS fix timestamp query
-//TODO SOS users index username
+
+//TODO TEST
+//index
