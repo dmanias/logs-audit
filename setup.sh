@@ -14,8 +14,10 @@ su - ${USER}
 groups
 #install golang
 sudo apt install golang-go
-#Change mongo's directory rights
-sudo chown -R $USER:$USER /mongo/data/db
+#Create Mongo directories
+mkdir mongo/data
+mkdir mongo/data/db
+#sudo chown -R $USER:$USER /mongo/data/db
 #Run the sevice
 docker compose build
 docker compose up -d
