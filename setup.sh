@@ -14,7 +14,8 @@ su - ${USER}
 groups
 #install golang
 sudo apt install golang-go
-#install golang packages
+#Change mongo's directory rights
+sudo chmod u+x mongo/*
 #Run the sevice
-sudo docker compose build
-sudo docker compose up -d
+docker compose build
+docker compose up -d
