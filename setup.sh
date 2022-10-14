@@ -14,4 +14,4 @@ sudo apt install golang-go
 #install golang packages
 #Run the sevice
 sudo docker compose build
-sudo dockser compose up -d
+sudo docker compose up -d
