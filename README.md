@@ -17,3 +17,4 @@ registrationsHandler
 In the test/test_endpoints.sh are the curl calls for the API.
 For the search operation the results are exported in the benchmarks.txt file and the metrics are presented in the console.
 
+Unit tests are in the main and auth folders.
