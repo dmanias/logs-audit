@@ -15,6 +15,7 @@ clone git@github.com:dmanias/logs-audit.git
 ```
 run set up script
 ```shell
+sudo chmod u+x setup.shsudo 
 ./setup.sh
 ```
 
