@@ -15,7 +15,9 @@ su - ${USER} -c "cd `pwd`; bash"
 sudo apt install golang-go
 #Create Mongo directories
 mkdir mongo/data
+chown ${USER}|${GROUP} mongo/data
 mkdir mongo/data/db
+chown ${USER}|${GROUP} mongo/data/db
 #sudo chown -R $USER:$USER /mongo/data/db
 #Run the service
 #sudo docker compose build
