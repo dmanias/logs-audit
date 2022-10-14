@@ -10,7 +10,6 @@ mkdir -p ~/.docker/cli-plugins/
 curl -SL https://github.com/docker/compose/releases/download/v2.3.3/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
 chmod +x ~/.docker/cli-plugins/docker-compose
 sudo usermod -aG docker ${USER}
-
 #install golang
 sudo apt install golang-go
 #Create Mongo directories
@@ -18,5 +17,5 @@ mkdir mongo/data
 mkdir mongo/data/db
 #sudo chown -R $USER:$USER /mongo/data/db
 #Run the sevice
-docker compose build
-docker compose up -d
+sudo docker compose build
+sudo docker compose up -d
