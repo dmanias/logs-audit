@@ -16,6 +16,6 @@ sudo apt install golang-go
 mkdir mongo/data
 mkdir mongo/data/db
 #sudo chown -R $USER:$USER /mongo/data/db
-#Run the sevice
+#Run the service
 sudo docker compose build
 sudo docker compose up -d
