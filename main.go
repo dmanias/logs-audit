@@ -363,6 +363,8 @@ func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+//Use closures for more efficient coding
+// Prevent duplicate code in the handlers
 func makeConnectDBHandler(fn func(http.ResponseWriter, *http.Request, *mongo.Database, context.Context)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		//Authentication check
