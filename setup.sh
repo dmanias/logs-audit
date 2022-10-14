@@ -7,3 +7,4 @@ apt-cache policy docker-ce
 sudo apt install docker-ce
 #install golang
 sudo apt install golang-go
+#install golang packages

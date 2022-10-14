@@ -5,6 +5,15 @@ Events are indexed by their invariant parts and the variant parts are stored all
 The endpoints are protected with bearer token authentication.
 
 For install run the setup.sh
+set up git
+```shell
+sudo apt install git
+```
+clone https://github.com/dmanias/logs-audit
+```shell
+clone git@github.com:dmanias/logs-audit.git
+```
+run set up script
 ```shell
 ./setup.sh
 ```
