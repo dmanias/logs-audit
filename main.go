@@ -1,18 +1,19 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/dmanias/logs-audit/auth"
 	"github.com/dmanias/logs-audit/config"
 	_ "github.com/dmanias/logs-audit/docs"
-	"github.com/dmanias/logs-audit/mongo"
+	mongoPack "github.com/dmanias/logs-audit/mongo"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -28,6 +29,41 @@ type Event struct {
 	EventType string                 `json:"eventType"`
 	Data      map[string]interface{} `json:"-"` // Rest of the fields should go here.
 	Tags      string                 `json:"tags"`
+}
+
+type Creator interface {
+	eventToBson() bson.M
+	eventToString() (string, error)
+}
+
+//@desc method createEventBson() creates a bson.M from an Event
+//@parameter {Event} event. An event
+func (inputEvent Event) eventToBson() bson.M {
+	//TODO add input for tags
+	bsonInput := bson.A{}
+	for _, value := range inputEvent.Data {
+		bsonInput = append(bsonInput, value)
+	}
+
+	bsonFromJson := bson.M{
+		"timestamp": inputEvent.Timestamp,
+		"service":   inputEvent.Service,
+		"eventType": inputEvent.EventType,
+		"data":      bsonInput,
+		"tags":      bson.A{"coding", "test"},
+	}
+	return bsonFromJson
+}
+
+//@desc method createEventString() creates a string from an Event
+//@parameter {Event} event. An event
+func (event Event) eventToString() (string, error) {
+	out, err := json.Marshal(event)
+	if err != nil {
+		log.Error(err.Error())
+		return "", err
+	}
+	return string(out), nil
 }
 
 // The Credentials struct handles and stores the user credentials to the DB
@@ -48,8 +84,8 @@ func main() {
 	router := muxRouter.PathPrefix("/api/v1").Subrouter() //Create base path for all routes
 	router.Use(prometheusMiddleware)
 	router.Handle("/metrics", promhttp.Handler())
-	router.HandleFunc("/events", searchDBHandler).Methods("GET")
-	router.HandleFunc("/events", storeEventsHandler).Methods("POST")
+	router.HandleFunc("/events", makeConnectDBHandler(searchDBHandler)).Methods("GET")
+	router.HandleFunc("/events", makeConnectDBHandler(storeEventsHandler)).Methods("POST")
 	router.HandleFunc("/auth", authenticationHandler).Methods("GET")
 	router.HandleFunc("/auth", registrationsHandler).Methods("POST")
 	router.PathPrefix("/swagger").Handler(httpSwagger.WrapHandler)
@@ -146,24 +182,8 @@ func checkToken(r *http.Request) bool {
 // @Success 201 {json} Event
 // @Failure 400, 403, 500 {json} error message
 // @Router /events [post]
-func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
+func storeEventsHandler(w http.ResponseWriter, r *http.Request, db *mongo.Database, ctx context.Context) {
 	w.Header().Set("Content-Type", "application/json")
-	//Authentication check
-	if !checkToken(r) {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid"})
-		return
-
-	}
-	//Connect to DB
-	cfg := config.New()
-	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
-	if err != nil {
-		log.Error(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
-		return
-	}
 	//Create event from input
 	inputEvent, err := createEventFromInput(r)
 	if err != nil {
@@ -172,19 +192,18 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
 		return
 	}
-
-	defer mongo.Close(mongoClient, ctx, cancel)
-
-	db := mongoClient.Database("db")
-	eventCollection := db.Collection("events")
+	//Use interface
+	create := Creator(inputEvent)
 	//Create bson.M from event
-	bsonFromEvent := createEventBson(inputEvent)
-	stringFromEvent, err := createEventString(inputEvent)
+	bsonFromEvent := create.eventToBson()
+	stringFromEvent, err := create.eventToString()
+
 	if err != nil {
 		log.Error("Input to String conversion failed")
 	}
 
 	//Add to DB
+	eventCollection := db.Collection("events")
 	_, err = eventCollection.InsertOne(ctx, bsonFromEvent)
 
 	if err != nil {
@@ -222,18 +241,14 @@ func createEventFromInput(r *http.Request) (Event, error) {
 		log.Error(err)
 		return Event{}, err
 	}
-	fmt.Println("event", event)
 	//remove the following data for efficiency
 	delete(event.Data, "timestamp")
 	delete(event.Data, "eventType")
 	delete(event.Data, "service")
 
-	fmt.Println("event", event)
 	return event, nil
 }
 
-//@desc createEventString() creates a string from an Event
-//@parameter {Event} event. An event
 func createEventString(event Event) (string, error) {
 	out, err := json.Marshal(event)
 	if err != nil {
@@ -242,31 +257,6 @@ func createEventString(event Event) (string, error) {
 	}
 	return string(out), nil
 }
-
-//@desc createEventString() creates a string from an Event
-//@parameter {Event} event. An event
-func createEventBson(inputEvent Event) bson.M {
-	//TODO add input for tags
-	fmt.Println("tafs", bson.A{"coding", "test"})
-
-	//b := new(bytes.Buffer)
-	bsonInput := bson.A{}
-	for _, value := range inputEvent.Data {
-		//fmt.Fprintf(b, "%s=\"%s\"\n", key, value)
-		bsonInput = append(bsonInput, value)
-	}
-
-	bsonFromJson := bson.M{
-		"timestamp": inputEvent.Timestamp,
-		"service":   inputEvent.Service,
-		"eventType": inputEvent.EventType,
-		"data":      bsonInput,
-		"tags":      bson.A{"coding", "test"},
-	}
-	return bsonFromJson
-}
-
-//mapToString(dataMap map[stringInterface])
 
 //@desc buildBsonObject() creates a bson.M from the API input
 //@parameter {Request} r. The API input
@@ -313,35 +303,15 @@ func buildBsonObject(r *http.Request) bson.M {
 // @Success 200 {json} Event
 // @Failure 400, 500 {json} error message
 // @Router /events [get]
-func searchDBHandler(w http.ResponseWriter, r *http.Request) {
+func searchDBHandler(w http.ResponseWriter, r *http.Request, db *mongo.Database, ctx context.Context) {
 	//TODO search greater and less than the timestamp given
 	//TODO sort results if necessary
+
 	w.Header().Set("Content-Type", "application/json")
-	//Authentication check
-	if !checkToken(r) {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid."})
-		return
-	}
-	//Connect to DB
-	cfg := config.New()
-	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
-	if err != nil {
-		log.Fatal(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
-		return
-	}
-
-	defer mongo.Close(mongoClient, ctx, cancel)
-
-	db := mongoClient.Database("db")
 	eventsCollection := db.Collection("events")
 
 	//Build filter object
 	query := buildBsonObject(r)
-
-	fmt.Println(query)
 	filterCursor, err := eventsCollection.Find(ctx, query)
 	if err != nil {
 		log.Error(err.Error())
@@ -391,6 +361,29 @@ func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+}
+
+func makeConnectDBHandler(fn func(http.ResponseWriter, *http.Request, *mongo.Database, context.Context)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		//Authentication check
+		if !checkToken(r) {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid."})
+			return
+		}
+		//Connect to DB
+		cfg := config.New()
+		mongoClient, ctx, cancel, err := mongoPack.Connect(cfg.Database.Connector)
+		if err != nil {
+			log.Error(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
+			return
+		}
+		defer mongoPack.Close(mongoClient, ctx, cancel)
+		db := mongoClient.Database("db")
+		fn(w, r, db, ctx)
+	}
 }
 
 //@desc Monitoring
@@ -482,14 +475,8 @@ func init() {
 //TODO timestamp higher, between etc
 //TODO get with {id}
 
-//TODO closures error handling
 //TODO methods if necessary
 //TODO concurrency thread safe
-//TODO coverage tests and benchmarks
-
-//TODO sos search mongo from data and metadata
-//TODO SOS mongo secondary keys etc
 //TODO SOS sort the service or db
 
-//TODO TEST
-//index
+//TODO validation //https://medium.com/@apzuk3/input-validation-in-golang-bc24cdec1835#id_token=eyJhbGciOiJSUzI1NiIsImtpZCI6Ijk1NTEwNGEzN2ZhOTAzZWQ4MGM1NzE0NWVjOWU4M2VkYjI5YjBjNDUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJuYmYiOjE2NjU2NzUwMjUsImF1ZCI6IjIxNjI5NjAzNTgzNC1rMWs2cWUwNjBzMnRwMmEyamFtNGxqZGNtczAwc3R0Zy5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsInN1YiI6IjExNDAxOTQ2MTU1OTY0OTk4ODE3MyIsImVtYWlsIjoiZGltb3N0aGVuaXMubWFuaWFzQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhenAiOiIyMTYyOTYwMzU4MzQtazFrNnFlMDYwczJ0cDJhMmphbTRsamRjbXMwMHN0dGcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJuYW1lIjoiRGltb3N0aGVuaXMgTWFuaWFzIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FMbTV3dTBIVXdfX1YwSVJRMDF1dmhWQUFJRjNGNUswcE9RcFl1a0YtdTlDQUE9czk2LWMiLCJnaXZlbl9uYW1lIjoiRGltb3N0aGVuaXMiLCJmYW1pbHlfbmFtZSI6Ik1hbmlhcyIsImlhdCI6MTY2NTY3NTMyNSwiZXhwIjoxNjY1Njc4OTI1LCJqdGkiOiIzZmU4NjM3MzI1MTVmNmI3YzI4ZjA1NjI1ZjI4NzUyNDNhNWNiNDMyIn0.Xl-JQDzevM5iJu-tCEhruXIWtS6aR_IPHV2pzsojeXYlbJEvk81AR7Iu8_k88cgBaC4cJ_kyXuF6FfAvyJW6AxsRD_Mmxx-bnt-0PzG8pAMDNH6fwiygps184Qq7Ha3PYkXfbfAlg_cHrmWFrz_9jW3_rkeNPEchAxHV9r1W7GWrBSgM93Sf4UZcWdbEZ-o3UgNw7waD4RMOff4n4rW5pjiF0l7ym7dxS4rmR6lxu44fwkE2xJ6d-tbEA19l9SnjH_tPCPFM435mSRmbZ_0KzEtYJ6xh3uurWti-s7kn_Siq9jfKDgxk02eUwBMIr0v1orhtzXXS4xzpmmXKXk7muA
