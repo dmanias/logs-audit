@@ -1,13 +1,12 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"github.com/dmanias/logs-audit/config"
-	"github.com/dmanias/logs-audit/mongo"
-	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 	"time"
 )
@@ -28,28 +27,18 @@ type Token struct {
 //@desc generateToken() generates a map[string]interface with the token
 //@parameter {string} username. The username
 //@parameter {string} password. The password
-func GenerateToken(username string, password string) (map[string]interface{}, error) {
+func GenerateToken(client *mongo.Client, ctx context.Context, username string, password string) (map[string]interface{}, error) {
 
-	cfg := config.New()
-	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-
-	defer mongo.Close(mongoClient, ctx, cancel)
-
-	db := mongoClient.Database("db")
+	db := client.Database("db")
 	usersCollection := db.Collection("users")
 
 	user := User{}
-	err = usersCollection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
+	err := usersCollection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
 	if err != nil {
 		return nil, err
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.AccountPassword), []byte(password))
-
 	if err != nil {
 		return nil, errors.New("Invalid username or password.\r\n")
 	}
@@ -57,7 +46,6 @@ func GenerateToken(username string, password string) (map[string]interface{}, er
 	randomToken := make([]byte, 32)
 
 	_, err = rand.Read(randomToken)
-
 	if err != nil {
 		return nil, err
 	}
@@ -101,23 +89,13 @@ func createTokenBson(userId string, authToken string, generatedAt string, expire
 	}
 	return bson
 }
-func ValidateToken(authToken string) (bool, error) {
+func ValidateToken(client *mongo.Client, ctx context.Context, authToken string) (bool, error) {
 
-	cfg := config.New()
-	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
-	if err != nil {
-		log.Fatal(err)
-		return false, err
-	}
-
-	defer mongo.Close(mongoClient, ctx, cancel)
-
-	db := mongoClient.Database("db")
-	tokensCollection := db.Collection("authentication_tokens")
+	tokensCollection := client.Database("db").Collection("authentication_tokens")
 
 	token := Token{}
 
-	err = tokensCollection.FindOne(ctx, bson.M{"authToken": authToken}).Decode(&token)
+	err := tokensCollection.FindOne(ctx, bson.M{"authToken": authToken}).Decode(&token)
 	if err != nil {
 		return false, err
 	}
@@ -132,5 +110,4 @@ func ValidateToken(authToken string) (bool, error) {
 	}
 
 	return true, nil
-
 }

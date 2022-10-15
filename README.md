@@ -1,6 +1,7 @@
 # Log Audit
 
 This is a log audit service. Events are aggregated and the user can run queries on them. The events are indexed by their invariant parts. The variant parts are stored all together under the name data. The events endpoints are protected with bearer token authentication.
+In the store event procedure if the data are failed to be stored in the db then they are stored in a temp storage. 
 
 The service uses the following technologies:
 - Go
@@ -77,9 +78,6 @@ Web-based MongoDB admin interface
 ```azure
 http://localhost:8081
 ```
-
-### Example of Language specifics 
-
 ### Monitoring
 Monitoring is done with Prometheus. The metrics are exposed on the /metrics endpoint.
 ```azure
