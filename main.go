@@ -89,7 +89,7 @@ func (a *App) Run(addr string) {
 func (a *App) storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	//Authentication check
-	if !checkToken(r) {
+	if !a.checkToken(r) {
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid."})
 		return
@@ -197,6 +197,17 @@ func (a *App) registrationsHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+//@desc checkToken() check if the bearer token is valid
+//@parameter {Request} r. The API input
+func (a *App) checkToken(r *http.Request) bool {
+	authToken := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
+	validToken, err := auth.ValidateToken(a.DB, a.Context.ctx, authToken)
+	if err != nil {
+		log.Error(err.Error())
+	}
+	return validToken
+}
+
 // The Event struct creates the event from the input and add it to DB
 type Event struct {
 	Timestamp time.Time              `json:"timestamp"`
@@ -275,7 +286,7 @@ func (a *App) authenticationHandler(w http.ResponseWriter, r *http.Request) {
 	username, password, ok := r.BasicAuth()
 	w.Header().Set("Content-Type", "application/json")
 	if ok {
-		tokenDetails, err := auth.GenerateToken(username, password)
+		tokenDetails, err := auth.GenerateToken(a.DB, a.Context.ctx, username, password)
 
 		if err != nil {
 			log.Error(err.Error())
@@ -378,7 +389,7 @@ func (a *App) searchDBHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	//Authentication check
-	if !checkToken(r) {
+	if !a.checkToken(r) {
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid."})
 		return
