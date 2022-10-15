@@ -27,7 +27,7 @@ type Event struct {
 	Timestamp time.Time              `json:"timestamp"`
 	Service   string                 `json:"service"`
 	EventType string                 `json:"eventType"`
-	Data      map[string]interface{} `json:"-"` // Rest of the fields should go here.
+	Data      map[string]interface{} `json:"data"` // Rest of the fields should go here.
 	Tags      string                 `json:"tags"`
 }
 
@@ -57,8 +57,8 @@ func (inputEvent Event) eventToBson() bson.M {
 
 //@desc method createEventString() creates a string from an Event
 //@parameter {Event} event. An event
-func (event Event) eventToString() (string, error) {
-	out, err := json.Marshal(event)
+func (inputEvent Event) eventToString() (string, error) {
+	out, err := json.Marshal(inputEvent)
 	if err != nil {
 		log.Error(err.Error())
 		return "", err
@@ -98,9 +98,10 @@ func main() {
 // @Description add new users
 // @Tags Auth
 // @Accept json
-// @Param Input body Credentials false "Body (raw, json)"
+// @Param Input body Credentials false "User credentials"
 // @Success 200 {json} json
-// @Failure 400, 500 {json} json
+// @Failure 400 {json} json
+// @Failure 500 {json} json
 // @Router /auth [post]
 func registrationsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -124,26 +125,56 @@ func registrationsHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 
-	} else {
+	}
 
-		response, err := auth.RegisterUser(credentials.Username, credentials.Password)
+	response, err := auth.RegisterUser(credentials.Username, credentials.Password)
+
+	if err != nil {
+		log.Error(err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(bson.M{
+			"message": "Error while registering user. Please try again.",
+		})
+		return
+	}
+	log.Info(response)
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(bson.M{
+		"message": "New user is registered.",
+	})
+	return
+}
+
+// authenticationHandler ... Brings a token
+// @Summary Brings a new token for the user
+// @Description Brings a new token
+// @Tags Auth
+// @Security BasicAuth
+// @Success 200 {json} json
+// @Failure 400 {json} json
+// @Router /auth [get]
+func authenticationHandler(w http.ResponseWriter, r *http.Request) {
+	username, password, ok := r.BasicAuth()
+	w.Header().Set("Content-Type", "application/json")
+	if ok {
+		tokenDetails, err := auth.GenerateToken(username, password)
 
 		if err != nil {
 			log.Error(err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(bson.M{
-				"message": "Error while registering user. Please try again.",
-			})
-			return
-		} else {
-			log.Info(response)
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(bson.M{
-				"message": "New user is registered.",
-			})
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(bson.M{"message": "An error occured. Please try again."})
 			return
 		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(tokenDetails)
+		return
+
 	}
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(bson.M{"message": "You require a username/password to get a token."})
+	return
+
 }
 
 //@desc writeToFile() writes the input to a temporary storage ("mongo/temp.json") when the DB is down
@@ -173,6 +204,10 @@ func checkToken(r *http.Request) bool {
 	return validToken
 }
 
+type storeEventsResponse struct {
+	Message string `json:"message"`
+}
+
 // searchDBHandler ... Search in DB
 // @Summary Brings documents according to the criteria
 // @Description get documents
@@ -180,7 +215,9 @@ func checkToken(r *http.Request) bool {
 // @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
 // @Param Input body Event false "Body (raw, json)"
 // @Success 201 {json} Event
-// @Failure 400, 403, 500 {json} error message
+// @Failure 400 {json} error message
+// @Failure 403 {json} error message
+// @Failure 500 {json} error message
 // @Router /events [post]
 func storeEventsHandler(w http.ResponseWriter, r *http.Request, db *mongo.Database, ctx context.Context) {
 	w.Header().Set("Content-Type", "application/json")
@@ -189,7 +226,7 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request, db *mongo.Databa
 	if err != nil {
 		log.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
+		json.NewEncoder(w).Encode(storeEventsResponse{Message: "Error while creating event. Please try again."})
 		return
 	}
 	//Use interface
@@ -249,15 +286,6 @@ func createEventFromInput(r *http.Request) (Event, error) {
 	return event, nil
 }
 
-func createEventString(event Event) (string, error) {
-	out, err := json.Marshal(event)
-	if err != nil {
-		log.Error(err.Error())
-		return "", err
-	}
-	return string(out), nil
-}
-
 //@desc buildBsonObject() creates a bson.M from the API input
 //@parameter {Request} r. The API input
 func buildBsonObject(r *http.Request) bson.M {
@@ -295,13 +323,14 @@ func buildBsonObject(r *http.Request) bson.M {
 // @Description get documents
 // @Tags Events
 // @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
-// @Param timestamp query string false "timestamp"
+// @Param timestamp query string false "2017-11-22"
 // @Param service query string false "the name of the service that sends the event"
 // @Param eventType query string false "the type of the event"
 // @Param data query string false "extra data to search in the event body"
 // @Param tags query string false "metadata given from the service when stores the events"
 // @Success 200 {json} Event
-// @Failure 400, 500 {json} error message
+// @Failure 400 {json} json
+// @Failure 500 {json} json
 // @Router /events [get]
 func searchDBHandler(w http.ResponseWriter, r *http.Request, db *mongo.Database, ctx context.Context) {
 	//TODO search greater and less than the timestamp given
@@ -329,38 +358,6 @@ func searchDBHandler(w http.ResponseWriter, r *http.Request, db *mongo.Database,
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(bson.M{"events": eventsFiltered})
-}
-
-// searchDBHandler ... Search in DB
-// @Summary Brings documents according to the criteria
-// @Description get documents
-// @Tags Auth
-// @Security BasicAuth
-// @Success 200 {json} Event
-// @Failure 400 {json} error message
-// @Router /auth [get]
-func authenticationHandler(w http.ResponseWriter, r *http.Request) {
-	username, password, ok := r.BasicAuth()
-
-	if ok {
-		tokenDetails, err := auth.GenerateToken(username, password)
-
-		if err != nil {
-			log.Error(err.Error())
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(bson.M{"message": "An error occured. Please try again."})
-			return
-		} else {
-			enc := json.NewEncoder(w)
-			enc.SetIndent("", "  ")
-			enc.Encode(tokenDetails)
-		}
-	} else {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(bson.M{"message": "You require a username/password to get a token."})
-		return
-	}
-
 }
 
 //Use closures for more efficient coding
@@ -465,20 +462,3 @@ func init() {
 		panic(err)
 	}
 }
-
-//TODO create function for errors
-//TODO template to show events
-//TODO probably replace MongoDB with elasticsearch
-//TODO add regex for better indexing
-//TODO add enviroment for tags/labels
-//TODO create admin enviroment
-//TODO show results in html
-//TODO bearer token to JWT https://blog.logrocket.com/jwt-authentication-go/
-//TODO timestamp higher, between etc
-//TODO get with {id}
-
-//TODO methods if necessary
-//TODO concurrency thread safe
-//TODO SOS sort the service or db
-
-//TODO validation //https://medium.com/@apzuk3/input-validation-in-golang-bc24cdec1835#id_token=eyJhbGciOiJSUzI1NiIsImtpZCI6Ijk1NTEwNGEzN2ZhOTAzZWQ4MGM1NzE0NWVjOWU4M2VkYjI5YjBjNDUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJuYmYiOjE2NjU2NzUwMjUsImF1ZCI6IjIxNjI5NjAzNTgzNC1rMWs2cWUwNjBzMnRwMmEyamFtNGxqZGNtczAwc3R0Zy5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsInN1YiI6IjExNDAxOTQ2MTU1OTY0OTk4ODE3MyIsImVtYWlsIjoiZGltb3N0aGVuaXMubWFuaWFzQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhenAiOiIyMTYyOTYwMzU4MzQtazFrNnFlMDYwczJ0cDJhMmphbTRsamRjbXMwMHN0dGcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJuYW1lIjoiRGltb3N0aGVuaXMgTWFuaWFzIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FMbTV3dTBIVXdfX1YwSVJRMDF1dmhWQUFJRjNGNUswcE9RcFl1a0YtdTlDQUE9czk2LWMiLCJnaXZlbl9uYW1lIjoiRGltb3N0aGVuaXMiLCJmYW1pbHlfbmFtZSI6Ik1hbmlhcyIsImlhdCI6MTY2NTY3NTMyNSwiZXhwIjoxNjY1Njc4OTI1LCJqdGkiOiIzZmU4NjM3MzI1MTVmNmI3YzI4ZjA1NjI1ZjI4NzUyNDNhNWNiNDMyIn0.Xl-JQDzevM5iJu-tCEhruXIWtS6aR_IPHV2pzsojeXYlbJEvk81AR7Iu8_k88cgBaC4cJ_kyXuF6FfAvyJW6AxsRD_Mmxx-bnt-0PzG8pAMDNH6fwiygps184Qq7Ha3PYkXfbfAlg_cHrmWFrz_9jW3_rkeNPEchAxHV9r1W7GWrBSgM93Sf4UZcWdbEZ-o3UgNw7waD4RMOff4n4rW5pjiF0l7ym7dxS4rmR6lxu44fwkE2xJ6d-tbEA19l9SnjH_tPCPFM435mSRmbZ_0KzEtYJ6xh3uurWti-s7kn_Siq9jfKDgxk02eUwBMIr0v1orhtzXXS4xzpmmXKXk7muA

@@ -23,11 +23,11 @@ const docTemplate = `{
                         "BasicAuth": []
                     }
                 ],
-                "description": "get documents",
+                "description": "Brings a new token",
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Brings documents according to the criteria",
+                "summary": "Brings a new token for the user",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -54,7 +54,7 @@ const docTemplate = `{
                 "summary": "Add a new user to DB",
                 "parameters": [
                     {
-                        "description": "Body (raw, json)",
+                        "description": "User credentials",
                         "name": "Input",
                         "in": "body",
                         "schema": {
@@ -65,6 +65,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "type": "json"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "type": "json"
                         }
@@ -96,7 +102,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "timestamp",
+                        "description": "2017-11-22",
                         "name": "timestamp",
                         "in": "query"
                     },
@@ -137,6 +143,12 @@ const docTemplate = `{
                         "schema": {
                             "type": "json"
                         }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "json"
+                        }
                     }
                 }
             },
@@ -165,14 +177,26 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
                             "type": "json"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "json"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "json"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "type": "json"
                         }
@@ -196,10 +220,18 @@ const docTemplate = `{
         "main.Event": {
             "type": "object",
             "properties": {
+                "data": {
+                    "description": "Rest of the fields should go here.",
+                    "type": "object",
+                    "additionalProperties": true
+                },
                 "eventType": {
                     "type": "string"
                 },
                 "service": {
+                    "type": "string"
+                },
+                "tags": {
                     "type": "string"
                 },
                 "timestamp": {

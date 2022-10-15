@@ -27,14 +27,14 @@ func RegisterUser(username string, password string) (string, error) {
 
 	userBson, err := createUserBson(username, password)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 		return "", err
 	}
 
 	_, err = usersCollection.InsertOne(ctx, userBson)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 		return "", err
 	}
 

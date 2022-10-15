@@ -9,9 +9,15 @@ definitions:
     type: object
   main.Event:
     properties:
+      data:
+        additionalProperties: true
+        description: Rest of the fields should go here.
+        type: object
       eventType:
         type: string
       service:
+        type: string
+      tags:
         type: string
       timestamp:
         type: string
@@ -24,7 +30,7 @@ info:
 paths:
   /auth:
     get:
-      description: get documents
+      description: Brings a new token
       responses:
         "200":
           description: OK
@@ -36,7 +42,7 @@ paths:
             type: json
       security:
       - BasicAuth: []
-      summary: Brings documents according to the criteria
+      summary: Brings a new token for the user
       tags:
       - Auth
     post:
@@ -44,7 +50,7 @@ paths:
       - application/json
       description: add new users
       parameters:
-      - description: Body (raw, json)
+      - description: User credentials
         in: body
         name: Input
         schema:
@@ -52,6 +58,10 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            type: json
+        "400":
+          description: Bad Request
           schema:
             type: json
         "500":
@@ -71,7 +81,7 @@ paths:
         name: Authorization
         required: true
         type: string
-      - description: timestamp
+      - description: "2017-11-22"
         in: query
         name: timestamp
         type: string
@@ -100,6 +110,10 @@ paths:
           description: Bad Request
           schema:
             type: json
+        "500":
+          description: Internal Server Error
+          schema:
+            type: json
       summary: Brings documents according to the criteria
       tags:
       - Events
@@ -118,12 +132,20 @@ paths:
         schema:
           $ref: '#/definitions/main.Event'
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
           schema:
             type: json
         "400":
           description: Bad Request
+          schema:
+            type: json
+        "403":
+          description: Forbidden
+          schema:
+            type: json
+        "500":
+          description: Internal Server Error
           schema:
             type: json
       summary: Brings documents according to the criteria

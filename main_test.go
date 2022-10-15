@@ -36,9 +36,10 @@ func Test_writeToFile(t *testing.T) {
 	}
 }
 
-//Test createEventString from main.go
-//Takes the Event input and checks the string,error output, 2 times
-func Test_createEventString(t *testing.T) {
+//Test eventToBson method from main.go
+//Takes the Event input and checks the bson.M output, 2 times
+func TestEvent_eventToBson(t *testing.T) {
+
 	data1 := map[string]interface{}{
 		"test": "delicious",
 	}
@@ -48,6 +49,82 @@ func Test_createEventString(t *testing.T) {
 		EventType: "event",
 		Data:      data1,
 		Timestamp: time.Now(),
+		Tags:      "test",
+	}
+
+	byte1 := bson.M{
+		"service":   event1.Service,
+		"eventType": event1.EventType,
+		"data":      event1.Data,
+		"timestamp": event1.Timestamp,
+		"tags":      event1.Tags,
+	}
+
+	data2 := map[string]interface{}{
+		"test": "delicious",
+	}
+
+	event2 := Event{
+		Service:   "BILLING",
+		EventType: "event",
+		Data:      data2,
+		Timestamp: time.Now(),
+		Tags:      "test",
+	}
+
+	tests := []struct {
+		name   string
+		fields Event
+		want   bson.M
+	}{
+		{
+			name:   "Input 1",
+			fields: event1,
+			want:   byte1,
+		},
+		{
+			name:   "Input 2 with the same output as 1",
+			fields: event2,
+			want:   byte1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inputEvent := Event{
+				Timestamp: tt.fields.Timestamp,
+				Service:   tt.fields.Service,
+				EventType: tt.fields.EventType,
+				Data:      tt.fields.Data,
+				Tags:      tt.fields.Tags,
+			}
+			if got := inputEvent.eventToBson(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("eventToBson() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+} //require equal values
+
+//Test eventToString method from main.go
+//Takes the Event input and checks the string output, 2 times
+func TestEvent_eventToString(t *testing.T) {
+	type fields struct {
+		Timestamp time.Time
+		Service   string
+		EventType string
+		Data      map[string]interface{}
+		Tags      string
+	}
+
+	data1 := map[string]interface{}{
+		"test": "delicious",
+	}
+
+	event1 := fields{
+		Service:   "BILLING",
+		EventType: "event",
+		Data:      data1,
+		Timestamp: time.Now(),
+		Tags:      "test",
 	}
 
 	byte1, _ := json.Marshal(event1)
@@ -56,120 +133,44 @@ func Test_createEventString(t *testing.T) {
 		"test": "delicious",
 	}
 
-	event2 := Event{
+	event2 := fields{
 		Service:   "BILLING",
 		EventType: "event",
 		Data:      data2,
 		Timestamp: time.Now(),
+		Tags:      "test",
 	}
+	byte2, _ := json.Marshal(event1)
 
-	byte2, _ := json.Marshal(event2)
-	type args struct {
-		event Event
-	}
 	tests := []struct {
-		name    string
-		args    args
-		want    string
-		wantErr bool
+		name   string
+		fields fields
+		want   string
 	}{
 		{
-			name: "Input 1",
-			args: args{
-				event: event1,
-			},
-			want: string(byte1),
+			name:   "Input 1",
+			fields: event1,
+			want:   string(byte1),
 		},
 		{
-			name: "Input 2",
-			args: args{
-				event: event2,
-			},
-			want: string(byte2),
+			name:   "Input 2 with the same output as 1",
+			fields: event2,
+			want:   string(byte2),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := createEventString(tt.args.event)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("createEventString() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			inputEvent := Event{
+				Timestamp: tt.fields.Timestamp,
+				Service:   tt.fields.Service,
+				EventType: tt.fields.EventType,
+				Data:      tt.fields.Data,
+				Tags:      tt.fields.Tags,
 			}
+			got, _ := inputEvent.eventToString()
+
 			if got != tt.want {
-				t.Errorf("createEventString() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-//Test createEventBson from main.go
-//Takes the Event input and checks the bson.M output, 2 times
-func Test_createEventBson(t *testing.T) {
-	data1 := map[string]interface{}{
-		"test": "delicious",
-	}
-
-	event1 := Event{
-		Service:   "BILLING",
-		EventType: "event",
-		Data:      data1,
-		Timestamp: time.Now(),
-	}
-
-	byte1 := bson.M{
-		"timestamp": event1.Timestamp,
-		"service":   event1.Service,
-		"eventType": event1.EventType,
-		"data":      event1.Data,
-		"tags":      bson.A{"coding", "test"},
-	}
-
-	data2 := map[string]interface{}{
-		"test": "delicious",
-	}
-
-	event2 := Event{
-		Service:   "BILLING",
-		EventType: "event",
-		Data:      data2,
-		Timestamp: time.Now(),
-	}
-	/*
-		byte2 := bson.M{
-			"timestamp": event2.Timestamp,
-			"service":   event2.Service,
-			"eventType": event2.EventType,
-			"data":      event2.Data,
-			"tags":      bson.A{"coding", "test"},
-		}*/
-
-	type args struct {
-		inputEvent Event
-	}
-	tests := []struct {
-		name string
-		args args
-		want bson.M
-	}{
-		{
-			name: "Input 1",
-			args: args{
-				inputEvent: event1,
-			},
-			want: byte1,
-		},
-		{
-			name: "Input 2 with the same output as 1",
-			args: args{
-				inputEvent: event2,
-			},
-			want: byte1,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := createEventBson(tt.args.inputEvent); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("createEventBson() = %v, want %v", got, tt.want)
+				t.Errorf("eventToString() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
