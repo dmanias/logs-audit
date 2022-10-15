@@ -16,5 +16,5 @@
 
 .env
 ./.idea
-./mongo/data/db/**
+db/data/db/**
 !./mongo/data/db/.keep

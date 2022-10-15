@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"github.com/dmanias/logs-audit/auth"
 	"github.com/dmanias/logs-audit/config"
-	_ "github.com/dmanias/logs-audit/docs"
-	mongoPack "github.com/dmanias/logs-audit/mongo"
+	mongoPkg "github.com/dmanias/logs-audit/mongo"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -16,10 +15,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // @title Logs Audit API documentation
@@ -33,7 +30,7 @@ func main() {
 	a := App{}
 	a.initialize()
 	a.Run(":8080")
-	defer mongoPack.Close(a.DB, a.Context.ctx, a.Context.cancel)
+	defer mongoPkg.Close(a.DB, a.Context.ctx, a.Context.cancel)
 }
 
 type App struct {
@@ -50,7 +47,7 @@ type Context struct {
 func (a *App) initialize() {
 	//Connect to DB
 	cfg := config.New()
-	mongoClient, ctx, cancel, err := mongoPack.Connect(cfg.Database.Connector)
+	mongoClient, ctx, cancel, err := mongoPkg.Connect(cfg.Database.Connector)
 	if err != nil {
 		log.Error(err)
 	}
@@ -75,6 +72,12 @@ func (a *App) Run(addr string) {
 	log.Fatal(http.ListenAndServe(addr, a.Router))
 }
 
+// StatusError represents an error with an associated HTTP status code.
+type StatusError struct {
+	Code int
+	Err  error
+}
+
 // searchDBHandler ... Search in DB
 // @Summary Brings documents according to the criteria
 // @Description get documents
@@ -89,9 +92,8 @@ func (a *App) Run(addr string) {
 func (a *App) storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	//Authentication check
-	if !a.checkToken(r) {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid."})
+	if _, err := a.checkToken(r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	//Create event from input
@@ -199,73 +201,14 @@ func (a *App) registrationsHandler(w http.ResponseWriter, r *http.Request) {
 
 //@desc checkToken() check if the bearer token is valid
 //@parameter {Request} r. The API input
-func (a *App) checkToken(r *http.Request) bool {
+func (a *App) checkToken(r *http.Request) (bool, error) {
 	authToken := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
 	validToken, err := auth.ValidateToken(a.DB, a.Context.ctx, authToken)
 	if err != nil {
 		log.Error(err.Error())
+		return false, err
 	}
-	return validToken
-}
-
-// The Event struct creates the event from the input and add it to DB
-type Event struct {
-	Timestamp time.Time              `json:"timestamp"`
-	Service   string                 `json:"service"`
-	EventType string                 `json:"eventType"`
-	Data      map[string]interface{} `json:"data"` // Rest of the fields should go here.
-	Tags      string                 `json:"tags"`
-}
-
-//@desc method createEventBson() creates a bson.M from an Event
-//@parameter {Event} event. An event
-func (event Event) eventToBson() bson.M {
-	//TODO add input for tags
-	bsonInput := bson.A{}
-	for _, value := range event.Data {
-		bsonInput = append(bsonInput, value)
-	}
-
-	bsonFromJson := bson.M{
-		"timestamp": event.Timestamp,
-		"service":   event.Service,
-		"eventType": event.EventType,
-		"data":      bsonInput,
-		"tags":      bson.A{"coding", "test"},
-	}
-	return bsonFromJson
-}
-
-//@desc method createEventString() creates a string from an Event
-//@parameter {Event} event. An event
-func (event Event) eventToString() (string, error) {
-	out, err := json.Marshal(event)
-	if err != nil {
-		log.Error(err.Error())
-		return "", err
-	}
-	return string(out), nil
-}
-
-func (event Event) store(client *mongo.Client, ctx context.Context) error {
-	//Create bson.M from event
-	bsonFromEvent := event.eventToBson()
-	stringFromEvent, err := event.eventToString()
-
-	if err != nil {
-		log.Error("Input to String conversion failed")
-		return err
-	}
-
-	//Add to DB
-	db := client.Database("db")
-	eventCollection := db.Collection("events")
-	_, err = eventCollection.InsertOne(ctx, bsonFromEvent) //TODO change the Blank identifier
-	if err != nil {
-		writeToFile(stringFromEvent) //write to temp file if mongo is down
-		return err
-	}
-	return nil
+	return validToken, nil
 }
 
 // The Credentials struct handles and stores the user credentials to the DB
@@ -304,37 +247,6 @@ func (a *App) authenticationHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(bson.M{"message": "You require a username/password to get a token."})
 	return
 
-}
-
-//@desc writeToFile() writes the input to a temporary storage ("mongo/temp.json") when the DB is down
-//@parameter {string} jsonInput. The input in json string
-func writeToFile(jsonInput string) {
-
-	f, err := os.OpenFile("mongo/temp.json", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-	if err != nil {
-		log.Error(err.Error())
-	}
-
-	defer f.Close()
-
-	if _, err = f.WriteString(jsonInput); err != nil {
-		log.Error(err.Error())
-	}
-}
-
-//@desc checkToken() check if the bearer token is valid
-//@parameter {Request} r. The API input
-func (a *App) heckToken(r *http.Request) bool {
-	authToken := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
-	validToken, err := auth.ValidateToken(a.DB, a.Context.ctx, authToken)
-	if err != nil {
-		log.Error(err.Error())
-	}
-	return validToken
-}
-
-type storeEventsResponse struct {
-	Message string `json:"message"`
 }
 
 //@desc buildBsonObject() creates a bson.M from the API input
@@ -404,24 +316,6 @@ func (a *App) searchDBHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(bson.M{"events": eventsFiltered})
-}
-
-// @desc search in DB for the events
-func search(client *mongo.Client, ctx context.Context, query bson.M) ([]bson.M, error) {
-	eventsCollection := client.Database("db").Collection("events")
-	var eventsFiltered []bson.M
-	//Build filter object
-	filterCursor, err := eventsCollection.Find(ctx, query)
-	if err != nil {
-		log.Error(err.Error())
-		return nil, err
-	}
-
-	if err = filterCursor.All(ctx, &eventsFiltered); err != nil {
-		log.Error(err.Error())
-		return nil, err
-	}
-	return eventsFiltered, nil
 }
 
 //@desc Monitoring
