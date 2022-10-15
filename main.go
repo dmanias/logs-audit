@@ -90,10 +90,9 @@ type StatusError struct {
 // @Failure 500 {json} error message
 // @Router /events [post]
 func (a *App) storeEventsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 	//Authentication check
 	if _, err := a.checkToken(r); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		errorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	//Create event from input
@@ -101,28 +100,19 @@ func (a *App) storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(bson.M{
-			"message": "Error while inserting event. Event is stored in temporal storage",
-		})
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	event := Event{}
 	if err := json.Unmarshal(body, &event); err != nil {
 		log.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(bson.M{
-			"message": "Error while inserting event. Event is stored in temporal storage",
-		})
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if err := json.Unmarshal(body, &event.Data); err != nil {
 		log.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(bson.M{
-			"message": "Error while inserting event. Event is stored in temporal storage",
-		})
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	//remove the following keys from data map
@@ -134,16 +124,10 @@ func (a *App) storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(bson.M{
-			"message": "Error while inserting event. Event is stored in temporal storage",
-		})
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(bson.M{
-		"message": "Event has been stored.",
-	})
+	okResponse(w, http.StatusCreated, "Event has been stored.")
 	return
 }
 
@@ -163,20 +147,12 @@ func (a *App) registrationsHandler(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&credentials)
 	if err != nil {
 		log.Info(err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(bson.M{
-			"message": "Error while registering user. Please try again.",
-		})
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	if credentials.Username == "" || credentials.Password == "" {
-
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(bson.M{
-			"message": "Please enter a valid username and password.",
-		})
+		errorResponse(w, http.StatusBadRequest, "Error while registering user. Please try again.")
 		return
 
 	}
@@ -189,6 +165,7 @@ func (a *App) registrationsHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(bson.M{
 			"message": "Error while registering user. Please try again.",
 		})
+		errorResponse(w, http.StatusInternalServerError, "Error while registering user. Please try again.")
 		return
 	}
 	log.Info(response)
@@ -318,6 +295,34 @@ func (a *App) searchDBHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(bson.M{"events": eventsFiltered})
 }
 
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
+type OkResponse struct {
+	Message string `json:"message"`
+}
+
+func errorResponse(w http.ResponseWriter, code int, message string) {
+	response, err := json.Marshal(ErrorResponse{Error: message})
+	if err != nil {
+		log.Error(err.Error())
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(response)
+}
+
+func okResponse(w http.ResponseWriter, code int, message string) {
+	response, err := json.Marshal(OkResponse{Message: message})
+	if err != nil {
+		log.Error(err.Error())
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(response)
+}
+
 //@desc Monitoring
 //Initialization, handling and Prometheus structs
 type responseWriter struct {
@@ -402,3 +407,4 @@ func init() {
 // use interface (ta esvisa, na ta afiso?)
 //sos ta messages
 //sos ta test
+//ta statuses
