@@ -88,4 +88,7 @@ Monitoring is done with Prometheus. The metrics are exposed on the /metrics endp
 ```azure
 http://localhost:8080/api/v1/metrics
 ```
-
+curl
+jq
+docker
+git
