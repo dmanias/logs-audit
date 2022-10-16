@@ -1,18 +1,14 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"github.com/dmanias/logs-audit/auth"
-	"github.com/dmanias/logs-audit/config"
-	mongoPkg "github.com/dmanias/logs-audit/mongo"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -30,35 +26,15 @@ func main() {
 	a := App{}
 	a.initialize()
 	a.Run(":8080")
-	defer mongoPkg.Close(a.DB, a.Context.ctx, a.Context.cancel)
 }
 
 type App struct {
-	Router  *mux.Router
-	DB      *mongo.Client
-	Context Context
-}
-
-type Context struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-}
-
-func (a *App) initialize() {
-	//Connect to DB
-	cfg := config.New()
-	mongoClient, ctx, cancel, err := mongoPkg.Connect(cfg.Database.Connector)
-	if err != nil {
-		log.Error(err)
-	}
-	a.DB = mongoClient
-	a.Context.ctx = ctx
-	a.Context.cancel = cancel
-	a.Router = mux.NewRouter().PathPrefix("/api/v1").Subrouter() //New router with base path for all routes
-	a.initializeRoutes()
+	Router *mux.Router
 }
 
 func (a *App) initializeRoutes() {
+	a.Router = mux.NewRouter().PathPrefix("/api/v1").Subrouter() //New router with base path for all routes
+	a.initializeRoutes()
 	a.Router.Use(prometheusMiddleware)
 	a.Router.Handle("/metrics", promhttp.Handler())
 	a.Router.HandleFunc("/events", a.searchDBHandler).Methods("GET")
@@ -70,12 +46,6 @@ func (a *App) initializeRoutes() {
 
 func (a *App) Run(addr string) {
 	log.Fatal(http.ListenAndServe(addr, a.Router))
-}
-
-// StatusError represents an error with an associated HTTP status code.
-type StatusError struct {
-	Code int
-	Err  error
 }
 
 // searchDBHandler ... Search in DB
@@ -91,7 +61,7 @@ type StatusError struct {
 // @Router /events [post]
 func (a *App) storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	//Authentication check
-	if _, err := a.checkToken(r); err != nil {
+	if _, err := checkToken(r); err != nil {
 		errorResponse(w, http.StatusForbidden, err.Error())
 		return
 	}
@@ -170,7 +140,7 @@ func (a *App) registrationsHandler(w http.ResponseWriter, r *http.Request) {
 
 //@desc checkToken() check if the bearer token is valid
 //@parameter {Request} r. The API input
-func (a *App) checkToken(r *http.Request) (bool, error) {
+func checkToken(r *http.Request) (bool, error) {
 	authToken := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
 	validToken, err := auth.ValidateToken(a.DB, a.Context.ctx, authToken)
 	if err != nil {
@@ -399,3 +369,5 @@ func init() {
 //to bson.m sto search response kai to reponse sto token
 
 //pantelis, vasi kai na allsko to config
+
+//aleksandros provlima me to koino db
