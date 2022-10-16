@@ -38,7 +38,7 @@ func RegisterUser(username string, password string) (string, error) {
 		return "", err
 	}
 
-	return "Success\r\n", nil
+	return "Success", nil
 }
 
 //@desc createUserBson() creates a bson.M from the user credentials

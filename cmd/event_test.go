@@ -1,82 +1,53 @@
 package main
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
-	"reflect"
 	"testing"
 	"time"
 )
 
 func TestEvent_store(t *testing.T) {
-	type fields struct {
-		Timestamp time.Time
-		Service   string
-		EventType string
-		Data      map[string]interface{}
-		Tags      string
+
+	map1 := map[string]interface{}{"data1": 1, "data2": 2}
+	event1 := Event{
+		Timestamp: time.Now(),
+		Service:   "ADMINISTRATION",
+		EventType: "event",
+		Data:      map1,
+		Tags:      "curl",
 	}
+
+	event2 := Event{
+		Timestamp: time.Now(),
+		Service:   "ADMINISTRATION",
+		EventType: "event",
+		Data:      map1,
+		Tags:      "test2",
+	}
+
 	tests := []struct {
 		name    string
-		fields  fields
+		event   Event
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{name: "Input 1",
+			event: event1,
+		},
+		{name: "Input 2",
+			event: event2,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			event := Event{
-				Timestamp: tt.fields.Timestamp,
-				Service:   tt.fields.Service,
-				EventType: tt.fields.EventType,
-				Data:      tt.fields.Data,
-				Tags:      tt.fields.Tags,
+				Timestamp: tt.event.Timestamp,
+				Service:   tt.event.Service,
+				EventType: tt.event.EventType,
+				Data:      tt.event.Data,
+				Tags:      tt.event.Tags,
 			}
 			if err := event.store(); (err != nil) != tt.wantErr {
 				t.Errorf("store() error = %v, wantErr %v", err, tt.wantErr)
 			}
-		})
-	}
-}
-
-func Test_search(t *testing.T) {
-	type args struct {
-		query bson.M
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    []bson.M
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := search(tt.args.query)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("search() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("search() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_writeToFile(t *testing.T) {
-	type args struct {
-		jsonInput string
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			writeToFile(tt.args.jsonInput)
 		})
 	}
 }

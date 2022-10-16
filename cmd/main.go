@@ -91,8 +91,7 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	delete(event.Data, "eventType")
 	delete(event.Data, "service")
 
-	event.store()
-
+	err = event.store()
 	if err != nil {
 		log.Error(err.Error())
 		errorResponse(w, http.StatusInternalServerError, err.Error())
@@ -169,7 +168,6 @@ func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 	username, password, ok := r.BasicAuth()
 	if ok {
 		tokenDetails, err := auth.GenerateToken(username, password)
-
 		if err != nil {
 			log.Error(err.Error())
 			errorResponse(w, http.StatusBadRequest, err.Error())
@@ -177,7 +175,12 @@ func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(tokenDetails)
+		err = json.NewEncoder(w).Encode(tokenDetails)
+		if err != nil {
+			log.Error(err.Error())
+			errorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		return
 	}
 	errorResponse(w, http.StatusBadRequest, "You require a username/password to get a token.")
@@ -251,7 +254,12 @@ func searchDBHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(SearchHandlerResponse{Message: eventsFiltered})
+	err = json.NewEncoder(w).Encode(SearchHandlerResponse{Message: eventsFiltered})
+	if err != nil {
+		log.Error(err.Error())
+		errorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
 }
 
 type ErrorResponse struct {
@@ -365,7 +373,7 @@ func init() {
 // sos to event store exei 2 pointers to opoio den tou aresei
 // use interface (ta esvisa, na ta afiso?)
 //sos ta messages
-//sos ta test
+//sos ta curl
 //ta statuses
 //to bson.m sto search response kai to reponse sto token
 
