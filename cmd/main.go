@@ -367,16 +367,3 @@ func init() {
 		panic(err)
 	}
 }
-
-//Init , initialization
-// ta polla orismata sto ctx (closedb)
-// sos to event store exei 2 pointers to opoio den tou aresei
-// use interface (ta esvisa, na ta afiso?)
-//sos ta messages
-//sos ta curl
-//ta statuses
-//to bson.m sto search response kai to reponse sto token
-
-//pantelis, vasi kai na allsko to config
-
-//aleksandros provlima me to koino db
