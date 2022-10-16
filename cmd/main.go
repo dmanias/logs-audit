@@ -1,9 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/dmanias/logs-audit/auth"
-	_ "github.com/dmanias/logs-audit/docs"
-	"github.com/dmanias/logs-audit/eventsHelper"
+	_ "github.com/dmanias/logs-audit/cmd/docs"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -14,23 +14,13 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 )
-
-// The Event struct creates the event from the input and add it to DB
-type Event struct {
-	Timestamp time.Time              `json:"timestamp"`
-	Service   string                 `json:"service"`
-	EventType string                 `json:"eventType"`
-	Data      map[string]interface{} `json:"data"` // Rest of the fields should go here.
-	Tags      string                 `json:"tags"`
-}
 
 // @title Logs Audit API documentation
 // @version 1.0.0
 // @host localhost:8080
 // @BasePath /api/v1
-// @securityDefinitions.basic BasicAuth //only for swagger
+// @securityDefinitions.basic BasicAuth
 
 func main() {
 	a := App{}
@@ -86,7 +76,7 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	event := eventsHelper.Event{}
+	event := Event{}
 	if err := json.Unmarshal(body, &event); err != nil {
 		log.Error(err.Error())
 		errorResponse(w, http.StatusInternalServerError, err.Error())
@@ -261,7 +251,7 @@ func searchDBHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := buildBsonObject(r)
-	eventsFiltered, err := eventsHelper.Search(query)
+	eventsFiltered, err := search(query)
 	if err != nil {
 		errorResponse(w, http.StatusBadRequest, err.Error())
 		return

@@ -1,4 +1,4 @@
-package eventsHelper
+package main
 
 import (
 	"encoding/json"
@@ -81,7 +81,7 @@ func (event Event) Store() error {
 }
 
 // @desc search in DB for the events
-func Search(query bson.M) ([]bson.M, error) {
+func search(query bson.M) ([]bson.M, error) {
 	//DB connection
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)

@@ -1,4 +1,4 @@
-package eventsHelper
+package main
 
 import (
 	"fmt"
