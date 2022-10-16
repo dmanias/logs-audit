@@ -17,6 +17,11 @@ The service uses the following technologies:
 docker-compose up --detach --build
 ```
 
+### To stop:
+```shell
+docker-compose down
+```
+
 ### API
 Port: 8080  
 Base path: /api/v1  
