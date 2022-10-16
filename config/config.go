@@ -5,10 +5,8 @@ import (
 )
 
 type ServerConfig struct {
-	Port          string `envconfig:"SERVER_PORT" default:"8000"`
+	Port          string `envconfig:"SERVER_PORT" default:"8080"`
 	LogLevel      string `envconfig:"LOG_LEVEL" default:"InfoLevel"`
-	HealthPort    string `envconfig:"HEALTH_PORT" default:"9000"`
-	MetricsPort   string `envconfig:"METRICS_PORT" default:"9123"`
 	MaxCPU        string `envconfig:"MAX_CPU"`
 	RequestCPU    string `envconfig:"REQ_CPU"`
 	MaxMemory     string `envconfig:"MAX_MEMORY"`
