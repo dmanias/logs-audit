@@ -92,7 +92,7 @@ type StatusError struct {
 func (a *App) storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	//Authentication check
 	if _, err := a.checkToken(r); err != nil {
-		errorResponse(w, http.StatusBadRequest, err.Error())
+		errorResponse(w, http.StatusForbidden, err.Error())
 		return
 	}
 	//Create event from input
@@ -152,27 +152,19 @@ func (a *App) registrationsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if credentials.Username == "" || credentials.Password == "" {
-		errorResponse(w, http.StatusBadRequest, "Error while registering user. Please try again.")
+		errorResponse(w, http.StatusBadRequest, "Please enter a valid username and password.")
 		return
-
 	}
 
 	response, err := auth.RegisterUser(credentials.Username, credentials.Password)
 
 	if err != nil {
 		log.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(bson.M{
-			"message": "Error while registering user. Please try again.",
-		})
-		errorResponse(w, http.StatusInternalServerError, "Error while registering user. Please try again.")
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	log.Info(response)
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(bson.M{
-		"message": "New user is registered.",
-	})
+	okResponse(w, http.StatusOK, "New user is registered.")
 	return
 }
 
@@ -204,26 +196,21 @@ type Credentials struct {
 // @Router /auth [get]
 func (a *App) authenticationHandler(w http.ResponseWriter, r *http.Request) {
 	username, password, ok := r.BasicAuth()
-	w.Header().Set("Content-Type", "application/json")
 	if ok {
 		tokenDetails, err := auth.GenerateToken(a.DB, a.Context.ctx, username, password)
 
 		if err != nil {
 			log.Error(err.Error())
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(bson.M{"message": "An error occured. Please try again."})
+			errorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		}
-
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(tokenDetails)
 		return
-
 	}
-	w.WriteHeader(http.StatusBadRequest)
-	json.NewEncoder(w).Encode(bson.M{"message": "You require a username/password to get a token."})
+	errorResponse(w, http.StatusBadRequest, "You require a username/password to get a token.")
 	return
-
 }
 
 //@desc buildBsonObject() creates a bson.M from the API input
@@ -278,19 +265,16 @@ func (a *App) searchDBHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	//Authentication check
-	if !a.checkToken(r) {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(bson.M{"message": "Token is missing or it is not valid."})
+	if _, err := a.checkToken(r); err != nil {
+		errorResponse(w, http.StatusForbidden, err.Error())
 		return
 	}
 	query := buildBsonObject(r)
 	eventsFiltered, err := search(a.DB, a.Context.ctx, query)
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(bson.M{"message": "An error occurred. Please try again."})
+		errorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(bson.M{"events": eventsFiltered})
 }
@@ -408,3 +392,4 @@ func init() {
 //sos ta messages
 //sos ta test
 //ta statuses
+//to bson.m sto search response kai to reponse sto token
