@@ -8,7 +8,8 @@ WORKDIR /app
 EXPOSE 8080
 COPY . .
 RUN go mod download
-RUN go curl ./cmd/... ./auth/...
+RUN go test ./auth/...
+#CMD ["go", "run", "./cmd"]
 CMD ["go", "run", "./cmd"]
 
 FROM golang:1.18.3-alpine3.16 AS build

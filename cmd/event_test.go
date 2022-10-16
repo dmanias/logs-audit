@@ -13,7 +13,7 @@ func TestEvent_store(t *testing.T) {
 		Service:   "ADMINISTRATION",
 		EventType: "event",
 		Data:      map1,
-		Tags:      "curl",
+		Tags:      "test1",
 	}
 
 	event2 := Event{
@@ -30,10 +30,12 @@ func TestEvent_store(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "Input 1",
-			event: event1,
+			event:   event1,
+			wantErr: false,
 		},
 		{name: "Input 2",
-			event: event2,
+			event:   event2,
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
