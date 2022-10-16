@@ -22,8 +22,8 @@ WORKDIR  /app
 RUN go build -o logs-audit
 
 FROM alpine:3.16 AS production
-COPY --from=build /app/logs-audit /usr/local/logs-audit
+COPY --from=build /app/logs-audit /usr/local/bin/logs-audit
 EXPOSE 8080
 USER nobody:nobody
 
-ENTRYPOINT ["/usr/local/logs-audit"]
+ENTRYPOINT ["/usr/local/bin/logs-audit"]
