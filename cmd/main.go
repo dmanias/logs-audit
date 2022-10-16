@@ -19,9 +19,8 @@ import (
 // @version 1.0.0
 // @host localhost:8080
 // @BasePath /api/v1
-// @securityDefinitions.basic BasicAuth
+// @securityDefinitions.basic BasicAuth //only for swagger
 
-//@desc main() exposes 4 endpoints for user registration, user authentication, logs aggregation and queries
 func main() {
 	a := App{}
 	a.initializeRoutes()
@@ -32,6 +31,8 @@ type App struct {
 	Router *mux.Router
 }
 
+//@desc main() exposes 6 endpoints for user registration, user authentication, logs aggregation, logs queries,
+//metrics and swagger documentation
 func (a *App) initializeRoutes() {
 	a.Router = mux.NewRouter().PathPrefix("/api/v1").Subrouter() //New router with base path for all routes
 	a.Router.Use(prometheusMiddleware)
@@ -79,12 +80,13 @@ func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	//Catch variant parameters from input to event
 	if err := json.Unmarshal(body, &event.Data); err != nil {
 		log.Error(err.Error())
 		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	//remove the following keys from data map
+	//Remove the following keys from data map
 	delete(event.Data, "timestamp")
 	delete(event.Data, "eventType")
 	delete(event.Data, "service")
@@ -298,7 +300,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-//registered variable
+//Registered variable
 var totalRequests = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "http_requests_total",
@@ -307,7 +309,7 @@ var totalRequests = prometheus.NewCounterVec(
 	[]string{"path"},
 )
 
-//registered variable
+//Registered variable
 var responseStatus = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "response_status",
@@ -316,7 +318,7 @@ var responseStatus = prometheus.NewCounterVec(
 	[]string{"status"},
 )
 
-//registered variable
+//Registered variable
 var httpDuration = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Name: "http_response_time_seconds",

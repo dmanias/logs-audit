@@ -1,10 +1,7 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"reflect"
 	"testing"
 	"time"
@@ -18,14 +15,9 @@ func TestEvent_store(t *testing.T) {
 		Data      map[string]interface{}
 		Tags      string
 	}
-	type args struct {
-		client *mongo.Client
-		ctx    context.Context
-	}
 	tests := []struct {
 		name    string
 		fields  fields
-		args    args
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -39,7 +31,7 @@ func TestEvent_store(t *testing.T) {
 				Data:      tt.fields.Data,
 				Tags:      tt.fields.Tags,
 			}
-			if err := event.store(tt.args.client, tt.args.ctx); (err != nil) != tt.wantErr {
+			if err := event.store(); (err != nil) != tt.wantErr {
 				t.Errorf("store() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -48,9 +40,7 @@ func TestEvent_store(t *testing.T) {
 
 func Test_search(t *testing.T) {
 	type args struct {
-		client *mongo.Client
-		ctx    context.Context
-		query  bson.M
+		query bson.M
 	}
 	tests := []struct {
 		name    string
@@ -62,7 +52,7 @@ func Test_search(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := search(tt.args.client, tt.args.ctx, tt.args.query)
+			got, err := search(tt.args.query)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("search() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -74,8 +64,6 @@ func Test_search(t *testing.T) {
 	}
 }
 
-//Test writeToFile from main.go
-//Takes the string input and writes is to mongo/temp.json file, 2 times
 func Test_writeToFile(t *testing.T) {
 	type args struct {
 		jsonInput string
@@ -84,18 +72,10 @@ func Test_writeToFile(t *testing.T) {
 		name string
 		args args
 	}{
-		{name: "Input 1",
-			args: args{
-				jsonInput: `{"page": 1, "fruits": ["apple", "peach"]}`,
-			}},
-		{name: "Input 2",
-			args: args{
-				jsonInput: `{"page": 2, "fruits": ["apple", "peach"]}`,
-			}},
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fmt.Println(tt.args.jsonInput)
 			writeToFile(tt.args.jsonInput)
 		})
 	}
