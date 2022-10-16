@@ -241,7 +241,7 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
-        "BasicAuth": {
+        "BasicAuth //only for swagger": {
             "type": "basic"
         }
     }

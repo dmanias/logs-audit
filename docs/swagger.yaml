@@ -152,6 +152,6 @@ paths:
       tags:
       - Events
 securityDefinitions:
-  BasicAuth:
+  BasicAuth //only for swagger:
     type: basic
 swagger: "2.0"
