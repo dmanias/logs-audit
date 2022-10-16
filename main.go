@@ -245,6 +245,10 @@ func buildBsonObject(r *http.Request) bson.M {
 	return query
 }
 
+type SearchHandlerResponse struct {
+	Message []bson.M `json:"events"`
+}
+
 // searchDBHandler ... Search in DB
 // @Summary Brings documents according to the criteria
 // @Description get documents
@@ -276,7 +280,7 @@ func (a *App) searchDBHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(bson.M{"events": eventsFiltered})
+	json.NewEncoder(w).Encode(SearchHandlerResponse{Message: eventsFiltered})
 }
 
 type ErrorResponse struct {
