@@ -1,0 +1,9 @@
+**.md
+**.env
+./.github/**
+./.dockerignore
+./.gitignore
+./Dockerfile
+./docker-compose.yml
+./mongo/data/db/**
+./idea/**
