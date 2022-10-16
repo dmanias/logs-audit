@@ -1,11 +1,11 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
+	"github.com/dmanias/logs-audit/config"
+	"github.com/dmanias/logs-audit/mongo"
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"os"
 	"time"
 )
@@ -49,7 +49,18 @@ func (event Event) eventToString() (string, error) {
 	return string(out), nil
 }
 
-func (event Event) store(client *mongo.Client, ctx context.Context) error {
+func (event Event) store() error {
+	//DB connection
+	cfg := config.New()
+	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+
+	defer mongo.Close(mongoClient, ctx, cancel)
+	db := mongoClient.Database("db")
+
 	//Create bson.M from event
 	bsonFromEvent := event.eventToBson()
 	stringFromEvent, err := event.eventToString()
@@ -60,7 +71,6 @@ func (event Event) store(client *mongo.Client, ctx context.Context) error {
 	}
 
 	//Add to DB
-	db := client.Database("db")
 	eventCollection := db.Collection("events")
 	_, err = eventCollection.InsertOne(ctx, bsonFromEvent) //TODO change the Blank identifier
 	if err != nil {
@@ -71,8 +81,20 @@ func (event Event) store(client *mongo.Client, ctx context.Context) error {
 }
 
 // @desc search in DB for the events
-func search(client *mongo.Client, ctx context.Context, query bson.M) ([]bson.M, error) {
-	eventsCollection := client.Database("db").Collection("events")
+func search(query bson.M) ([]bson.M, error) {
+	//DB connection
+	cfg := config.New()
+	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	defer mongo.Close(mongoClient, ctx, cancel)
+
+	db := mongoClient.Database("db")
+
+	eventsCollection := db.Collection("events")
 	var eventsFiltered []bson.M
 	//Build filter object
 	filterCursor, err := eventsCollection.Find(ctx, query)

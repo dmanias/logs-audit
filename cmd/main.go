@@ -24,7 +24,7 @@ import (
 //@desc main() exposes 4 endpoints for user registration, user authentication, logs aggregation and queries
 func main() {
 	a := App{}
-	a.initialize()
+	a.initializeRoutes()
 	a.Run(":8080")
 }
 
@@ -34,13 +34,12 @@ type App struct {
 
 func (a *App) initializeRoutes() {
 	a.Router = mux.NewRouter().PathPrefix("/api/v1").Subrouter() //New router with base path for all routes
-	a.initializeRoutes()
 	a.Router.Use(prometheusMiddleware)
 	a.Router.Handle("/metrics", promhttp.Handler())
-	a.Router.HandleFunc("/events", a.searchDBHandler).Methods("GET")
-	a.Router.HandleFunc("/events", a.storeEventsHandler).Methods("POST")
-	a.Router.HandleFunc("/auth", a.authenticationHandler).Methods("GET")
-	a.Router.HandleFunc("/auth", a.registrationsHandler).Methods("POST")
+	a.Router.HandleFunc("/events", searchDBHandler).Methods("GET")
+	a.Router.HandleFunc("/events", storeEventsHandler).Methods("POST")
+	a.Router.HandleFunc("/auth", authenticationHandler).Methods("GET")
+	a.Router.HandleFunc("/auth", registrationsHandler).Methods("POST")
 	a.Router.PathPrefix("/swagger").Handler(httpSwagger.WrapHandler)
 }
 
@@ -59,7 +58,7 @@ func (a *App) Run(addr string) {
 // @Failure 403 {json} error message
 // @Failure 500 {json} error message
 // @Router /events [post]
-func (a *App) storeEventsHandler(w http.ResponseWriter, r *http.Request) {
+func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	//Authentication check
 	if _, err := checkToken(r); err != nil {
 		errorResponse(w, http.StatusForbidden, err.Error())
@@ -90,7 +89,7 @@ func (a *App) storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	delete(event.Data, "eventType")
 	delete(event.Data, "service")
 
-	event.store(a.DB, a.Context.ctx)
+	event.store()
 
 	if err != nil {
 		log.Error(err.Error())
@@ -111,7 +110,7 @@ func (a *App) storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {json} json
 // @Failure 500 {json} json
 // @Router /auth [post]
-func (a *App) registrationsHandler(w http.ResponseWriter, r *http.Request) {
+func registrationsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var credentials Credentials
 	err := json.NewDecoder(r.Body).Decode(&credentials)
@@ -142,7 +141,7 @@ func (a *App) registrationsHandler(w http.ResponseWriter, r *http.Request) {
 //@parameter {Request} r. The API input
 func checkToken(r *http.Request) (bool, error) {
 	authToken := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
-	validToken, err := auth.ValidateToken(a.DB, a.Context.ctx, authToken)
+	validToken, err := auth.ValidateToken(authToken)
 	if err != nil {
 		log.Error(err.Error())
 		return false, err
@@ -164,10 +163,10 @@ type Credentials struct {
 // @Success 200 {json} json
 // @Failure 400 {json} json
 // @Router /auth [get]
-func (a *App) authenticationHandler(w http.ResponseWriter, r *http.Request) {
+func authenticationHandler(w http.ResponseWriter, r *http.Request) {
 	username, password, ok := r.BasicAuth()
 	if ok {
-		tokenDetails, err := auth.GenerateToken(a.DB, a.Context.ctx, username, password)
+		tokenDetails, err := auth.GenerateToken(username, password)
 
 		if err != nil {
 			log.Error(err.Error())
@@ -233,18 +232,18 @@ type SearchHandlerResponse struct {
 // @Failure 400 {json} json
 // @Failure 500 {json} json
 // @Router /events [get]
-func (a *App) searchDBHandler(w http.ResponseWriter, r *http.Request) {
+func searchDBHandler(w http.ResponseWriter, r *http.Request) {
 	//TODO search greater and less than the timestamp given
 	//TODO sort results if necessary
 
 	w.Header().Set("Content-Type", "application/json")
 	//Authentication check
-	if _, err := a.checkToken(r); err != nil {
+	if _, err := checkToken(r); err != nil {
 		errorResponse(w, http.StatusForbidden, err.Error())
 		return
 	}
 	query := buildBsonObject(r)
-	eventsFiltered, err := search(a.DB, a.Context.ctx, query)
+	eventsFiltered, err := search(query)
 	if err != nil {
 		errorResponse(w, http.StatusBadRequest, err.Error())
 		return

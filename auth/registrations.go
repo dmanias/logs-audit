@@ -12,7 +12,7 @@ import (
 //@parameter {string} username. The username
 //@parameter {string} password. The password
 func RegisterUser(username string, password string) (string, error) {
-
+	//DB connection
 	cfg := config.New()
 	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
 	if err != nil {

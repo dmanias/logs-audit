@@ -1,12 +1,13 @@
 package auth
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"github.com/dmanias/logs-audit/config"
+	"github.com/dmanias/logs-audit/mongo"
+	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 	"time"
 )
@@ -27,13 +28,22 @@ type Token struct {
 //@desc generateToken() generates a map[string]interface with the token
 //@parameter {string} username. The username
 //@parameter {string} password. The password
-func GenerateToken(client *mongo.Client, ctx context.Context, username string, password string) (map[string]interface{}, error) {
+func GenerateToken(username string, password string) (map[string]interface{}, error) {
+	//DB connection
+	cfg := config.New()
+	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
 
-	db := client.Database("db")
+	defer mongo.Close(mongoClient, ctx, cancel)
+
+	db := mongoClient.Database("db")
 	usersCollection := db.Collection("users")
 
 	user := User{}
-	err := usersCollection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
+	err = usersCollection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
 	if err != nil {
 		return nil, err
 	}
@@ -89,13 +99,25 @@ func createTokenBson(userId string, authToken string, generatedAt string, expire
 	}
 	return bson
 }
-func ValidateToken(client *mongo.Client, ctx context.Context, authToken string) (bool, error) {
+func ValidateToken(authToken string) (bool, error) {
 
-	tokensCollection := client.Database("db").Collection("authentication_tokens")
+	//Connect to DB
+	cfg := config.New()
+	mongoClient, ctx, cancel, err := mongo.Connect(cfg.Database.Connector)
+	if err != nil {
+		log.Error(err)
+		return false, err
+	}
+
+	defer mongo.Close(mongoClient, ctx, cancel)
+
+	db := mongoClient.Database("db")
+
+	tokensCollection := db.Collection("authentication_tokens")
 
 	token := Token{}
 
-	err := tokensCollection.FindOne(ctx, bson.M{"authToken": authToken}).Decode(&token)
+	err = tokensCollection.FindOne(ctx, bson.M{"authToken": authToken}).Decode(&token)
 	if err != nil {
 		return false, err
 	}
