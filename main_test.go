@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/dmanias/logs-audit/cmd"
 	"go.mongodb.org/mongo-driver/bson"
 	"reflect"
 	"testing"
@@ -31,7 +32,7 @@ func Test_writeToFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fmt.Println(tt.args.jsonInput)
-			writeToFile(tt.args.jsonInput)
+			main.writeToFile(tt.args.jsonInput)
 		})
 	}
 }
@@ -44,7 +45,7 @@ func TestEvent_eventToBson(t *testing.T) {
 		"test": "delicious",
 	}
 
-	event1 := Event{
+	event1 := main.Event{
 		Service:   "BILLING",
 		EventType: "event",
 		Data:      data1,
@@ -64,7 +65,7 @@ func TestEvent_eventToBson(t *testing.T) {
 		"test": "delicious",
 	}
 
-	event2 := Event{
+	event2 := main.Event{
 		Service:   "BILLING",
 		EventType: "event",
 		Data:      data2,
@@ -74,7 +75,7 @@ func TestEvent_eventToBson(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		fields Event
+		fields main.Event
 		want   bson.M
 	}{
 		{
@@ -90,7 +91,7 @@ func TestEvent_eventToBson(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			inputEvent := Event{
+			inputEvent := main.Event{
 				Timestamp: tt.fields.Timestamp,
 				Service:   tt.fields.Service,
 				EventType: tt.fields.EventType,
@@ -160,7 +161,7 @@ func TestEvent_eventToString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			inputEvent := Event{
+			inputEvent := main.Event{
 				Timestamp: tt.fields.Timestamp,
 				Service:   tt.fields.Service,
 				EventType: tt.fields.EventType,
