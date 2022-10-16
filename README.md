@@ -22,10 +22,18 @@ To run the service:
 ```shell
 docker-compose up --detach --build
 ```
+or
+```shell
+docker compose up --detach --build
+```
 
 ### To stop:
 ```shell
 docker-compose down
+```
+or
+```shell
+docker llcompose down
 ```
 
 ### API
@@ -71,10 +79,10 @@ http://localhost:8080/api/v1/events?timestamp=2017-11-22&eventType=event&service
 ### DB Initialization
 The database is initialized from the script mongo/init-mongo.js file. The script creates the DB, the collections and the indexes.
 
-### Testing
-In the test/test_endpoints.sh file are the curl calls for the API. 
-For the GET /events call are presented some benchmark results as well. The search operation the results are exported in the benchmarks.txt file and the metrics are presented in the console.  
-The Unit tests are in the main and auth folders and they run with the docker compose up command.
+### Testing with CURL
+In the curl/test_endpoints.sh file are the curl calls for the API. 
+For the GET /events call are presented some benchmark results as well.  
+The search operation the results are exported in the results.txt file and the metrics are presented in the console.  
 
 ### Documentation
 The API is documented with the Swagger UI.

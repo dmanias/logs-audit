@@ -62,7 +62,8 @@ func (a *App) Run(addr string) {
 func storeEventsHandler(w http.ResponseWriter, r *http.Request) {
 	//Authentication check
 	if _, err := checkToken(r); err != nil {
-		errorResponse(w, http.StatusForbidden, err.Error())
+		log.Error(err.Error())
+		errorResponse(w, http.StatusForbidden, "Invalid token.")
 		return
 	}
 	//Create event from input
@@ -244,7 +245,8 @@ func searchDBHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	//Authentication check
 	if _, err := checkToken(r); err != nil {
-		errorResponse(w, http.StatusForbidden, err.Error())
+		log.Error(err.Error())
+		errorResponse(w, http.StatusForbidden, "Invalid token.")
 		return
 	}
 	query := buildBsonObject(r)
