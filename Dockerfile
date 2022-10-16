@@ -7,6 +7,6 @@ ENV GO111MODULE=on \
 WORKDIR /app
 EXPOSE 8080
 COPY . .
-RUN go mod download
+#RUN go mod download
 #RUN go test . && go test ./auth
 CMD ["go", "run", "./cmd"]
