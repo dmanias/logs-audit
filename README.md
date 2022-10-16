@@ -12,7 +12,13 @@ The service uses the following technologies:
 - Swagger
 - Prometheus
 
-### To run:
+In order to run the service you need to have git, docker, docker-compose, and jq (for running test_endpoints.sh) installed.  
+Install git: ```sudo apt install git```  
+Install docker for Ubuntu 22.04:  https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-22-04  
+Install docker-compose: https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-compose-on-ubuntu-22-04  
+Install jq: ```sudo apt install -y jq```  
+
+To run the service:
 ```shell
 docker-compose up --detach --build
 ```
@@ -88,7 +94,3 @@ Monitoring is done with Prometheus. The metrics are exposed on the /metrics endp
 ```azure
 http://localhost:8080/api/v1/metrics
 ```
-curl
-jq
-docker
-git
