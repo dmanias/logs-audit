@@ -1,55 +1,33 @@
 package main
 
 import (
+	"fmt"
 	"testing"
-	"time"
 )
 
-func TestEvent_store(t *testing.T) {
-
-	map1 := map[string]interface{}{"data1": 1, "data2": 2}
-	event1 := Event{
-		Timestamp: time.Now(),
-		Service:   "ADMINISTRATION",
-		EventType: "event",
-		Data:      map1,
-		Tags:      "test1",
+//Test writeToFile from main.go
+//Takes the string input and writes is to mongo/temp.json file, 2 times
+func Test_writeToFile(t *testing.T) {
+	type args struct {
+		jsonInput string
 	}
-
-	event2 := Event{
-		Timestamp: time.Now(),
-		Service:   "ADMINISTRATION",
-		EventType: "event",
-		Data:      map1,
-		Tags:      "test2",
-	}
-
 	tests := []struct {
-		name    string
-		event   Event
-		wantErr bool
+		name string
+		args args
 	}{
 		{name: "Input 1",
-			event:   event1,
-			wantErr: false,
-		},
+			args: args{
+				jsonInput: `{"page": 1, "fruits": ["apple", "peach"]}`,
+			}},
 		{name: "Input 2",
-			event:   event2,
-			wantErr: false,
-		},
+			args: args{
+				jsonInput: `{"page": 2, "fruits": ["apple", "peach"]}`,
+			}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			event := Event{
-				Timestamp: tt.event.Timestamp,
-				Service:   tt.event.Service,
-				EventType: tt.event.EventType,
-				Data:      tt.event.Data,
-				Tags:      tt.event.Tags,
-			}
-			if err := event.store(); (err != nil) != tt.wantErr {
-				t.Errorf("store() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			fmt.Println(tt.args.jsonInput)
+			writeToFile(tt.args.jsonInput)
 		})
 	}
 }
