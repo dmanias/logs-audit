@@ -22,7 +22,7 @@ services:
       - app-tier
     restart: unless-stopped
     volumes:
-      - ./mongo/data:/bitnami/mongodb/data
+      - ./mongo/data:/bitnami/mongodb/data:rw
       - ./mongo/mongo-init/:/docker-entrypoint-initdb.d/:ro
   mongo-ui:
     image: mongo-express
